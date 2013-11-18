@@ -1,0 +1,62 @@
+apply plugin: 'java'
+apply plugin: 'idea'
+sourceCompatibility = 1.5
+version = '1.0'
+defaultTasks 'clean', 'build'
+ext.rundeckPluginVersion = '1.1'
+
+apply plugin: "groovy"
+
+configurations{
+    //declare custom pluginLibs configuration to include only libs for this plugin
+    pluginLibs
+
+    //declare compile to extend from pluginLibs so it inherits the dependencies
+    compile{
+        extendsFrom pluginLibs
+    }
+}
+repositories {
+    mavenCentral()
+
+    add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
+        name = 'thirdparty'
+        addArtifactPattern "$projectDir/third-party/[module]-[revision]/[module]-[revision](-[classifier]).[ext]"
+        descriptor = 'optional'
+        checkmodified = true
+    }
+}
+dependencies {
+    pluginLibs group: 'log4j', name: 'log4j', version: '1.2.17'
+    pluginLibs group: 'com.sun.jersey', name: 'jersey-core', version: '1.17.1'
+    pluginLibs group: 'com.sun.jersey', name: 'jersey-client', version: '1.17.1'
+
+    compile group: 'org.rundeck', name: 'rundeck-core', version: '1.6.2'
+    compile 'org.codehaus.groovy:groovy-all:1.7.11'
+
+}
+
+// task to copy plugin libs to output/lib dir
+task copyToLib(type: Copy) {
+    into "$buildDir/output/lib"
+    from configurations.pluginLibs
+}
+
+
+jar {
+    //include contents of output dir
+    from "$buildDir/output"
+    manifest {
+        attributes 'Rundeck-Plugin-Version': rundeckPluginVersion, 'Rundeck-Plugin-Archive': 'true', 'Rundeck-Plugin-Libs-Load-First':'true'
+        //create space-separated list of pluginLibs
+        def libList = configurations.pluginLibs.collect{'lib/'+it.name}.join(' ')
+        attributes 'Rundeck-Plugin-Classnames': 'com.simplifyops.rundeck.plugin.resources.RightscaleNodesFactory', 'Rundeck-Plugin-Libs': "${libList}"
+    }
+}
+
+//set jar task to depend on copyToLib
+jar.dependsOn(copyToLib)
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.8'
+}
