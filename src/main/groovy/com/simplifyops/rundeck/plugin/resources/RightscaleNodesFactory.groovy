@@ -18,7 +18,6 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
 
     public static final String ENDPOINT = "endpoint";
 
-    public static final String RUNNING_ONLY = "runningOnly";
     public static final String EMAIL = "email";
     public static final String PASSWORD = "password";
     public static final String ACCOUNT = "account";
@@ -37,18 +36,14 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
 
     static Description DESC = DescriptionBuilder.builder()
             .name(PROVIDER_NAME)
-            .title("Rigthscale Resource Model Source")
-            .description("Generates nodes from a list of servers in your account via Rightscale API: /api/servers")
-            .property(PropertyUtil.string(EMAIL, "Email", "Email address for Rightscale User", true, null))
-            .property(PropertyUtil.string(PASSWORD, "Password", "Rightscale Password", true, null))
-            .property(PropertyUtil.string(ACCOUNT, "Account", "Rightscale Account", true, null))
+            .title("RightScale Servers")
+            .description("Generates nodes from a list of servers in your RightScale account.")
+            .property(PropertyUtil.string(EMAIL, "Email", "Email address for RightScale User", true, null))
+            .property(PropertyUtil.string(PASSWORD, "Password", "RightScale Password", true, null))
+            .property(PropertyUtil.string(ACCOUNT, "Account", "RightScale Account", true, null))
             .property(PropertyUtil.integer(REFRESH_INTERVAL, "Refresh Interval",
-                    "Minimum time in seconds between API requests to Rightscale (default is 30)", false, "30"))
-            .property(PropertyUtil.string(ENDPOINT, "Endpoint", "Rightscale  Endpoint, or blank for default", false, "https://us-3.rightscale.com"))
-            .property(PropertyUtil.bool(RUNNING_ONLY, "Only Operational Instances",
-                    "Include Operational state instances only. If false, all instances will be returned",
-                    false, "true"))
-
+                    "Minimum time in seconds between API requests to RightScale (default is 60)", false, "60"))
+            .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5", false, "https://us-3.rightscale.com"))
             .build();
 
     public Description getDescription() {

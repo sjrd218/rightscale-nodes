@@ -17,6 +17,8 @@ import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.LoggingFilter
 import com.sun.jersey.api.representation.Form
 
+import groovyx.gpars.GParsPool
+
 public class RightscaleNodes implements ResourceModelSource {
     static Logger logger = Logger.getLogger(RightscaleNodes.class);
 
@@ -69,15 +71,36 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
 
-
+    /**
+     * Query RightScale for their servers and return them as Nodes.
+     */
     @Override
     public synchronized INodeSet getNodes() throws ResourceModelSourceException {
-        System.println("Inside getNodes()...")
+        System.println("DEBUG: Inside getNodes()...")
 
         /**
-         * Query Rightscale for their nodes
+         * Haven't got any nodes yet so get them synchronously.
          */
-        nodeset = query();
+        if (null == nodeset) {
+            System.println("DEBUG: Getting nodes synchronously first time.")
+            updateNodeSet(query());
+
+        } else {
+
+            if (! needsRefresh()) {
+                System.println("DEBUG: Nodes don't need a refresh.")
+                return nodeset;
+            }
+
+            /**
+             * Query asynchronously.
+             */
+            System.println("DEBUG: Asynchronously getting nodes.")
+            Closure queryRequest = { updateNodeSet(query()) }
+            GParsPool.withPool() {
+                queryRequest.callAsync().get()
+            }
+        }
 
         /**
          * Return the nodeset
@@ -85,58 +108,92 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset;
     }
 
+
+    /**
+     * Update the NodeSet and reset the last refresh time.
+     * @param nodeset
+     */
+    void updateNodeSet(final INodeSet nodeset) {
+        this.nodeset = nodeset;
+        lastRefresh = System.currentTimeMillis();
+    }
+
+    /**
+     * Query the RightScale API for servers and map them to Nodes.
+     *
+     * @return nodeset of Nodes
+     */
     INodeSet query() {
         /**
-         * Login and create a session
-         */
-        connect();
-        /**
-         * Request the server data as XML
+         * Setup API defaults
          */
         Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
         Rest.baseUrl = endpoint;
 
-        def serversXml = "/api/servers.xml" as Rest;
-        serversXml.addFilter(new LoggingFilter(System.out))
-        def ClientResponse response = serversXml.get([:], [view:"instance_detail"])
+        /**
+         * Login and create a session
+         */
+        authenticate();
 
         /**
-         * Create a new node set for the result
+         * Request the servers data as XML
+         */
+        def serversRequest = "/api/servers.xml" as Rest;
+        serversRequest.addFilter(new LoggingFilter(System.out)); // debug output
+        def ClientResponse serversResponse = serversRequest.get([:], [view: "instance_detail"]); // instance_detail contains extra info
+
+        if ( serversResponse.status != 200 ) {
+            throw new ResourceModelSourceException("RightScale servers request error. " + serversResponse)
+        }
+        /**
+         * Create a node set for the result
          */
         INodeSet nodeset = new NodeSetImpl();
 
         /**
          * Traverse the dom to get each of the server nodes
          */
-        def groovy.util.Node servers = response.XML
+        def groovy.util.Node servers = serversResponse.XML
         System.out.println("DEBUG: number of servers in response to GET /api/servers: " + servers.server.size())
         servers.server.each { svr ->
             System.out.println("DEBUG: server: " + svr)
+            /**
+             * If it doesn't have a name ignore it.
+             */
             if (null != svr.name.text()) {
+
+                // ignore servers that aren't in a "running" state. They won't have a current_instance.
                 def current_instance = svr.links.link.find { it.'@rel' == 'current_instance' }?.'@href'
-                // a server with a current_instance is running.
-                if (null != current_instance) {
+                if (  null != current_instance ) {
                     System.out.println("DEBUG: current_instance: " + current_instance)
 
-                    def instanceXml = current_instance as Rest
-                    instanceXml.addFilter(new LoggingFilter(System.out))
-
-                    def ClientResponse response2 = instanceXml.get([:], [view:"extended"])
-
-                    def groovy.util.Node instance = response2.XML
-
-                    System.out.println("Debug: adding server: " + svr.name.text())
+                    // Define a new Node
                     NodeEntryImpl newNode = new NodeEntryImpl(svr.name.text());
                     newNode.setDescription(svr.description.text())
                     newNode.setAttribute("rs:state", svr.state.text())
                     newNode.setAttribute("rs:created_at", svr.created_at.text())
+                    /**
+                     * Add the new node to the set
+                     */
+                    nodeset.putNode(newNode);
 
+                    /**
+                     * Make an additional RightScale API request to get Instance level data
+                     */
+                    def instanceRequest = current_instance as Rest
+                    instanceRequest.addFilter(new LoggingFilter(System.out))  // debug output
+
+                    def ClientResponse instanceResponse = instanceRequest.get([:], [view: "extended"])
+                    if ( instanceResponse.status != 200 ) {
+                        throw new ResourceModelSourceException("RightScale instance request error. " + serversResponse)
+                    }
+                    def groovy.util.Node instance = instanceResponse.XML
                     newNode.setAttribute("rs:resource_uid", instance.resource_uid.text())
-
                     newNode.setAttribute("rs:public_ip_address0", instance.public_ip_addresses.public_ip_address[0].text())
                     newNode.setAttribute("rs:private_ip_address0", instance.private_ip_addresses.private_ip_address[0].text())
+                } else {
+                    System.out.println("DEBUG: skipping server with a null current_instance ")
 
-                    nodeset.putNode(newNode);
                 }
             } else {
                 System.out.println("DEBUG WARN: skipping server with a null name ")
@@ -149,6 +206,8 @@ public class RightscaleNodes implements ResourceModelSource {
          */
         return nodeset;
     }
+
+
     /**
      * Returns true if the last refresh time was longer ago than the refresh interval
      */
@@ -156,8 +215,10 @@ public class RightscaleNodes implements ResourceModelSource {
         return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
     }
 
-
-    private void connect() {
+    /**
+     * Login and create a session
+     */
+    private void authenticate() {
         // add a filter to set cookies received from the server and to check if login has been triggered
         Rest.client.addFilter(new ClientFilter() {
             private ArrayList<Object> cookies;
@@ -180,18 +241,18 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         });
 
-        WebResource login = Rest.client.resource("${endpoint}/api/session");
+        WebResource sessionRequest = Rest.client.resource("${endpoint}/api/session");
         Form form = new Form();
         form.putSingle("email", email);
         form.putSingle("password", password);
         form.putSingle("account_href", "/api/accounts/${account}");
-        def ClientResponse response = login.header("X-API-VERSION", "1.5").type("application/x-www-form-urlencoded").post(form);
+        def ClientResponse response = sessionRequest.header("X-API-VERSION", "1.5")
+                .type("application/x-www-form-urlencoded").post(ClientResponse.class, form);
         /**
          * Check the response for http status (eg, 20x)
          */
-        //def statusCode = response.getClientResponseStatus().statusCode;
-        //if (!( statusCode >= 200 && statusCode < 300)) {
-        //    throw new ResourceModelSourceException("Rightscale login error. " + response)
-        //}
+        if ( response.status != 204 ) {
+            throw new ResourceModelSourceException("RightScale login error. " + response)
+        }
     }
 }
