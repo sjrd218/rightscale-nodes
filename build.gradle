@@ -28,11 +28,12 @@ repositories {
 }
 dependencies {
     pluginLibs group: 'log4j', name: 'log4j', version: '1.2.17'
+    pluginLibs group: 'org.codehaus.gpars', name: 'gpars', version: '1.1.0'
     pluginLibs group: 'com.sun.jersey', name: 'jersey-core', version: '1.17.1'
     pluginLibs group: 'com.sun.jersey', name: 'jersey-client', version: '1.17.1'
 
     compile group: 'org.rundeck', name: 'rundeck-core', version: '1.6.2'
-    compile 'org.codehaus.groovy:groovy-all:1.7.11'
+    compile 'org.codehaus.groovy:groovy-all:2.0.8'
 
 }
 
