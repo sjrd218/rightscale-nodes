@@ -136,6 +136,11 @@ public class RightscaleNodes implements ResourceModelSource {
         authenticate();
 
         /**
+         * List Deployments and map href to their names.
+         */
+         def deployments = queryDeployments();
+
+        /**
          * Request the servers data as XML
          */
         def serversRequest = "/api/servers.xml" as Rest;
@@ -172,6 +177,15 @@ public class RightscaleNodes implements ResourceModelSource {
                     newNode.setDescription(svr.description.text())
                     newNode.setAttribute("rs:state", svr.state.text())
                     newNode.setAttribute("rs:created_at", svr.created_at.text())
+                    newNode.setOsFamily("unix"); // hard coded
+                    /**
+                     * Add a tag and attribute with the server's deployment.
+                     */
+                    def deployment_href = svr.links.link.find { it.'@rel' == 'deployment' }?.'@href'
+                    def deployment_name = deployments.containsKey(deployment_href)? deployments.get(deployment_href):deployment_href
+                    newNode.setAttribute("rs:deployment", deployment_name.toString())
+                    if (!newNode.tags.contains("rs:${deployment_name}"))  newNode.tags.add("rs:${deployment_name}")
+
                     /**
                      * Add the new node to the set
                      */
@@ -189,8 +203,8 @@ public class RightscaleNodes implements ResourceModelSource {
                     }
                     def groovy.util.Node instance = instanceResponse.XML
                     newNode.setAttribute("rs:resource_uid", instance.resource_uid.text())
-                    newNode.setAttribute("rs:public_ip_address0", instance.public_ip_addresses.public_ip_address[0].text())
-                    newNode.setAttribute("rs:private_ip_address0", instance.private_ip_addresses.private_ip_address[0].text())
+                    newNode.setAttribute("rs:public_ip_address0", instance.public_ip_addresses?.public_ip_address[0].text())
+                    newNode.setAttribute("rs:private_ip_address0", instance.private_ip_addresses?.private_ip_address[0].text())
                 } else {
                     System.out.println("DEBUG: skipping server with a null current_instance ")
 
@@ -207,6 +221,23 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset;
     }
 
+    private Map queryDeployments() {
+        def Map deployments = [:]
+        def deploymentsRequest = "/api/deployments.xml" as Rest;
+        deploymentsRequest.addFilter(new LoggingFilter(System.out)); // debug output
+        def ClientResponse deploymentsResponse = deploymentsRequest.get([:], [:]);
+        if (deploymentsResponse.status != 200) {
+            throw new ResourceModelSourceException("RightScale servers request error. " + deploymentsResponse)
+        }
+        def Node deps = deploymentsResponse.XML
+        deps.deployment.each { dep ->
+            def dep_href = dep.links.link.find { it.'@rel' == 'self' }?.'@href'
+            deployments.put(dep_href, dep.name.text())
+            System.out.println("DEBUG: added deployment " + dep.name.text());
+        }
+        System.out.println("DEBUG: Total number deployments found: " + deployments.size())
+        return deployments;
+    }
 
     /**
      * Returns true if the last refresh time was longer ago than the refresh interval
