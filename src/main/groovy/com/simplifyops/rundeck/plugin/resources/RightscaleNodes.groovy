@@ -6,40 +6,44 @@ import com.dtolabs.rundeck.core.common.NodeSetImpl
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException
 import com.dtolabs.rundeck.core.resources.ResourceModelSource
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
-
-import org.apache.log4j.Logger;
-
-import com.sun.jersey.api.client.ClientHandlerException;
-import com.sun.jersey.api.client.ClientRequest;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
-import com.sun.jersey.api.client.filter.ClientFilter;
-import com.sun.jersey.api.client.filter.LoggingFilter
-import com.sun.jersey.api.representation.Form
-
 import groovyx.gpars.GParsPool
+import org.apache.log4j.Logger
 
 public class RightscaleNodes implements ResourceModelSource {
     static Logger logger = Logger.getLogger(RightscaleNodes.class);
 
+    /**
+     * Configuration parameters.
+     */
     private String email;
     private String password;
     private String account;
-
     private long refreshInterval;
     private String endpoint;
+    private String username;
 
+    private String prefix = "rs_"
+
+    /**
+     * Time nodes were last updated.
+     */
     private long lastRefresh = 0;
-
+    /**
+     * The nodeset filled by the query result.
+     */
     private INodeSet nodeset;
 
-
+    /**
+     * Default constructor.
+     * @param configuration Properties containing plugin configuration values.
+     */
     public RightscaleNodes(Properties configuration) {
 
         email = configuration.getProperty(RightscaleNodesFactory.EMAIL)
         password = configuration.getProperty(RightscaleNodesFactory.PASSWORD)
         account = configuration.getProperty(RightscaleNodesFactory.ACCOUNT)
         endpoint = configuration.getProperty(RightscaleNodesFactory.ENDPOINT)
+        username = configuration.getProperty(RightscaleNodesFactory.USERNAME)
 
         int refreshSecs = 30;
         final String refreshStr = configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL)
@@ -51,7 +55,6 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
         refreshInterval = refreshSecs * 1000;
-
     }
 
     /**
@@ -70,7 +73,6 @@ public class RightscaleNodes implements ResourceModelSource {
         }
     }
 
-
     /**
      * Query RightScale for their servers and return them as Nodes.
      */
@@ -87,7 +89,7 @@ public class RightscaleNodes implements ResourceModelSource {
 
         } else {
 
-            if (! needsRefresh()) {
+            if (!needsRefresh()) {
                 System.println("DEBUG: Nodes don't need a refresh.")
                 return nodeset;
             }
@@ -108,6 +110,12 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset;
     }
 
+    /**
+     * Returns true if the last refresh time was longer ago than the refresh interval
+     */
+    private boolean needsRefresh() {
+        return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
+    }
 
     /**
      * Update the NodeSet and reset the last refresh time.
@@ -118,102 +126,23 @@ public class RightscaleNodes implements ResourceModelSource {
         lastRefresh = System.currentTimeMillis();
     }
 
+    private setNodeAttribute(NodeEntryImpl node, String key, String value) {
+        node.setAttribute(prefix + key, value)
+    }
+
     /**
      * Query the RightScale API for servers and map them to Nodes.
      *
      * @return nodeset of Nodes
      */
     INodeSet query() {
-        /**
-         * Setup API defaults
-         */
-        Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
-        Rest.baseUrl = endpoint;
+        RightscaleQuery query = new RightscaleQuery(email, password, account, endpoint)
 
-        /**
-         * Login and create a session
-         */
-        authenticate();
-
-        /**
-         * List Deployments and map href to their names.
-         */
-         def deployments = queryDeployments();
-
-        /**
-         * Request the servers data as XML
-         */
-        def serversRequest = "/api/servers.xml" as Rest;
-        serversRequest.addFilter(new LoggingFilter(System.out)); // debug output
-        def ClientResponse serversResponse = serversRequest.get([:], [view: "instance_detail"]); // instance_detail contains extra info
-
-        if ( serversResponse.status != 200 ) {
-            throw new ResourceModelSourceException("RightScale servers request error. " + serversResponse)
-        }
-        /**
-         * Create a node set for the result
-         */
         INodeSet nodeset = new NodeSetImpl();
 
-        /**
-         * Traverse the dom to get each of the server nodes
-         */
-        def groovy.util.Node servers = serversResponse.XML
-        System.out.println("DEBUG: number of servers in response to GET /api/servers: " + servers.server.size())
-        servers.server.each { svr ->
-            System.out.println("DEBUG: server: " + svr)
-            /**
-             * If it doesn't have a name ignore it.
-             */
-            if (null != svr.name.text()) {
+        nodeset.putNodes(queryServers(query))
 
-                // ignore servers that aren't in a "running" state. They won't have a current_instance.
-                def current_instance = svr.links.link.find { it.'@rel' == 'current_instance' }?.'@href'
-                if (  null != current_instance ) {
-                    System.out.println("DEBUG: current_instance: " + current_instance)
-
-                    // Define a new Node
-                    NodeEntryImpl newNode = new NodeEntryImpl(svr.name.text());
-                    newNode.setDescription(svr.description.text())
-                    newNode.setAttribute("rs:state", svr.state.text())
-                    newNode.setAttribute("rs:created_at", svr.created_at.text())
-                    newNode.setOsFamily("unix"); // hard coded
-                    /**
-                     * Add a tag and attribute with the server's deployment.
-                     */
-                    def deployment_href = svr.links.link.find { it.'@rel' == 'deployment' }?.'@href'
-                    def deployment_name = deployments.containsKey(deployment_href)? deployments.get(deployment_href):deployment_href
-                    newNode.setAttribute("rs:deployment", deployment_name.toString())
-                    if (!newNode.tags.contains("rs:${deployment_name}"))  newNode.tags.add("rs:${deployment_name}")
-
-                    /**
-                     * Add the new node to the set
-                     */
-                    nodeset.putNode(newNode);
-
-                    /**
-                     * Make an additional RightScale API request to get Instance level data
-                     */
-                    def instanceRequest = current_instance as Rest
-                    instanceRequest.addFilter(new LoggingFilter(System.out))  // debug output
-
-                    def ClientResponse instanceResponse = instanceRequest.get([:], [view: "extended"])
-                    if ( instanceResponse.status != 200 ) {
-                        throw new ResourceModelSourceException("RightScale instance request error. " + serversResponse)
-                    }
-                    def groovy.util.Node instance = instanceResponse.XML
-                    newNode.setAttribute("rs:resource_uid", instance.resource_uid.text())
-                    newNode.setAttribute("rs:public_ip_address0", instance.public_ip_addresses?.public_ip_address[0].text())
-                    newNode.setAttribute("rs:private_ip_address0", instance.private_ip_addresses?.private_ip_address[0].text())
-                } else {
-                    System.out.println("DEBUG: skipping server with a null current_instance ")
-
-                }
-            } else {
-                System.out.println("DEBUG WARN: skipping server with a null name ")
-            }
-
-        }
+        nodeset.putNodes(queryServerArrays(query))
 
         /**
          * Return the nodeset
@@ -221,69 +150,180 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset;
     }
 
-    private Map queryDeployments() {
-        def Map deployments = [:]
-        def deploymentsRequest = "/api/deployments.xml" as Rest;
-        deploymentsRequest.addFilter(new LoggingFilter(System.out)); // debug output
-        def ClientResponse deploymentsResponse = deploymentsRequest.get([:], [:]);
-        if (deploymentsResponse.status != 200) {
-            throw new ResourceModelSourceException("RightScale servers request error. " + deploymentsResponse)
-        }
-        def Node deps = deploymentsResponse.XML
-        deps.deployment.each { dep ->
-            def dep_href = dep.links.link.find { it.'@rel' == 'self' }?.'@href'
-            deployments.put(dep_href, dep.name.text())
-            System.out.println("DEBUG: added deployment " + dep.name.text());
-        }
-        System.out.println("DEBUG: Total number deployments found: " + deployments.size())
-        return deployments;
-    }
-
-    /**
-     * Returns true if the last refresh time was longer ago than the refresh interval
-     */
-    private boolean needsRefresh() {
-        return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
-    }
-
-    /**
-     * Login and create a session
-     */
-    private void authenticate() {
-        // add a filter to set cookies received from the server and to check if login has been triggered
-        Rest.client.addFilter(new ClientFilter() {
-            private ArrayList<Object> cookies;
-
-            @Override
-            public ClientResponse handle(ClientRequest request) throws ClientHandlerException {
-                if (cookies != null) {
-                    request.getHeaders().put("Cookie", cookies);
-                }
-                ClientResponse response = getNext().handle(request);
-                // copy cookies
-                if (response.getCookies() != null) {
-                    if (cookies == null) {
-                        cookies = new ArrayList<Object>();
-                    }
-                    // A simple addAll just for illustration (should probably check for duplicates and expired cookies)
-                    cookies.addAll(response.getCookies());
-                }
-                return response;
-            }
-        });
-
-        WebResource sessionRequest = Rest.client.resource("${endpoint}/api/session");
-        Form form = new Form();
-        form.putSingle("email", email);
-        form.putSingle("password", password);
-        form.putSingle("account_href", "/api/accounts/${account}");
-        def ClientResponse response = sessionRequest.header("X-API-VERSION", "1.5")
-                .type("application/x-www-form-urlencoded").post(ClientResponse.class, form);
+    private INodeSet queryServers(RightscaleQuery query) {
         /**
-         * Check the response for http status (eg, 20x)
+         * List Servers
          */
-        if ( response.status != 204 ) {
-            throw new ResourceModelSourceException("RightScale login error. " + response)
+        def servers = query.listServers()
+
+        /**
+         * Create a node set for the result
+         */
+        INodeSet nodeset = new NodeSetImpl();
+
+        System.out.println("DEBUG: Iterating over ${servers.size()} servers")
+        servers.each { href, svr ->
+            System.println("DEBUG: processing server: " + svr.name)
+            // Define a new Node
+            NodeEntryImpl newNode = createNode(svr.name)
+            newNode.setDescription(svr.description)
+            setNodeAttribute(newNode, "state", svr.state)
+            setNodeAttribute(newNode, "created_at", svr.created_at)
+            /**
+             * Use the server's deployment name as a tag and attribute.
+             */
+            def deployment = query.getDeployment(svr.deployment_href)
+            setNodeAttribute(newNode, "deployment", deployment.name)
+            if (!newNode.tags.contains("rs:${deployment.name}")) newNode.tags.add("rs:${deployment.name}")
+            /**
+             * Get the Tags for this Server.
+             */
+            def tags = query.getTags(svr.href)
+            tags.each {
+                if (!newNode.tags.contains(it)) newNode.tags.add("rs:${it}")
+            }
+            setNodeAttribute(newNode, "tags", tags.join(","))
+
+            /**
+             * Get this server's Instance as it contains attributes and links to more data.
+             */
+            def instance = query.getInstance(svr.current_instance_href)
+            /**
+             * Populate the node with the instance model data.
+             */
+            fillNode(query, newNode, instance)
+            /**
+             * Add the new node to the nodeset.
+             */
+            nodeset.putNode(newNode);
         }
+        return nodeset
     }
+
+    /**
+     * Convenience method to create a new Node with defaults.
+     * @param name Name of the node
+     * @return a new Node
+     */
+    private NodeEntryImpl createNode(final String name) {
+        NodeEntryImpl newNode = new NodeEntryImpl(name);
+        newNode.setUsername(username) // - Config property.
+        newNode.setOsFamily("unix");  // - Hard coded.
+        return newNode
+    }
+
+    /**
+     * Fill node with generic data from instance model.
+     * @param query The rightscale query object
+     * @param newNode The Node entry to fill
+     * @param instance The map containing instance data.
+     */
+    private void fillNode(RightscaleQuery query, NodeEntryImpl newNode, Map instance) {
+        setNodeAttribute(newNode, "resource_uid", instance.resource_uid)
+        setNodeAttribute(newNode, "public_ip_address", instance.public_ip_address)
+        setNodeAttribute(newNode, "private_ip_address", instance.private_ip_address)
+        setNodeAttribute(newNode, "public_dns_name", instance.public_dns_name)
+        setNodeAttribute(newNode, "private_dns_name", instance.private_dns_name)
+        setNodeAttribute(newNode, "user_data", instance.user_data)
+
+        newNode.setHostname(instance.public_ip_address) // TODO: convention needed here.
+
+        /**
+         * Get the ServerTemplate name
+         */
+        def server_template = query.getServerTemplate(instance.server_template_href)
+        setNodeAttribute(newNode, "server_template", server_template.name)
+
+        /**
+         * Get the Cloud name and type
+         */
+        def cloud = query.getCloud(instance.cloud_href)
+        setNodeAttribute(newNode, "cloud", cloud.name)
+        setNodeAttribute(newNode, "cloud_type", cloud.cloud_type)
+        if (!newNode.tags.contains("rs:${cloud.name}")) newNode.tags.add("rs:${cloud.name}")
+
+        /**
+         * Gt the Deployment
+         */
+        def deployment = query.getDeployment(instance.deployment_href)
+        setNodeAttribute(newNode, "deployment", deployment.name)
+        if (!newNode.tags.contains("rs:${deployment.name}")) newNode.tags.add("rs:${deployment.name}")
+
+        /**
+         * Get the Datacenter name
+         */
+        if (instance?.datacenter_href) {
+            def datacenter = query.getDatacenter(instance.datacenter_href)
+            setNodeAttribute(newNode, "datacenter", datacenter.name)
+            if (!newNode.tags.contains("rs:${datacenter.name}")) newNode.tags.add("rs:${datacenter.name}")
+        }
+        /**
+         * Get the Subnet name and state
+         */
+        if (instance?.subnet_href) {
+            def subnet = query.getSubnet(instance.subnet_href)
+            setNodeAttribute(newNode, "subnet", subnet.name)
+            setNodeAttribute(newNode, "subnet_visibility", subnet.state)
+            setNodeAttribute(newNode, "subnet_state", subnet.visibility)
+        }
+        /**
+         * Get the Image to get at cpu architecture
+         */
+        if (instance?.image_href) {
+            def image = query.getImage(instance.image_href)
+            setNodeAttribute(newNode, "image", image.name)
+            setNodeAttribute(newNode, "cpu_architecture", image.cpu_architecture)
+            setNodeAttribute(newNode, "virtualization_type", image.virtualization_type)
+            newNode.setOsArch(image.cpu_architecture)  // TODO: convention here
+        }
+        /**
+         * Get the InstanceType for machine level info.
+         */
+        if (instance?.instance_type_href) {
+            def instance_type = query.getInstanceType(instance.instance_type_href)
+            setNodeAttribute(newNode, "instance_type", instance_type.name)
+            setNodeAttribute(newNode, "memory", instance_type.memory)
+            setNodeAttribute(newNode, "cpu_speed", instance_type.cpu_speed)
+            setNodeAttribute(newNode, "local_disks", instance_type.local_disks)
+        }
+
+        /**
+         * Get the Tags for this Server.
+         */
+        def tags = query.getTags(instance.href)
+        tags.each {
+            if (!newNode.tags.contains(it)) newNode.tags.add("rs:${it}")
+        }
+        setNodeAttribute(newNode, "tags", tags.join(","))
+    }
+
+    /**
+     * Make nodes from ServerArray instances.
+     * @param query
+     * @return a new INodeSet of nodes for each instance in the query result.
+     */
+    private INodeSet queryServerArrays(RightscaleQuery query) {
+        /**
+         * Create a node set for the result
+         */
+        def nodeset = new NodeSetImpl();
+
+        def instances = query.listServerArrayInstances()
+        instances.each { href, model ->
+            println("DEBUG: queryServerArrays: creating node for : " + model.name)
+
+            NodeEntryImpl newNode = createNode(model.name)
+            fillNode(query, newNode, model)
+            if (model.containsKey("server_array")) {
+                setNodeAttribute(newNode, "server_array", model.server_array)
+                def tagname = "rs:array=${model.server_array}"
+                if (!newNode.tags.contains(tagname)) newNode.tags.add(tagname)
+            }
+
+            nodeset.putNode(newNode)
+        }
+
+        return nodeset;
+    }
+
 }
