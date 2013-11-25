@@ -22,6 +22,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
     public static final String PASSWORD = "password";
     public static final String ACCOUNT = "account";
     public static final String REFRESH_INTERVAL = "refreshInterval";
+    public static final String USERNAME = "username";
 
 
     public ResourceModelSourceFactory(final Framework framework) {
@@ -44,6 +45,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             .property(PropertyUtil.integer(REFRESH_INTERVAL, "Refresh Interval",
                     "Minimum time in seconds between API requests to RightScale (default is 60)", false, "60"))
             .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5", false, "https://us-3.rightscale.com"))
+            .property(PropertyUtil.string(USERNAME, "Username", "Username for remote command execution", true, null))
             .build();
 
     public Description getDescription() {
