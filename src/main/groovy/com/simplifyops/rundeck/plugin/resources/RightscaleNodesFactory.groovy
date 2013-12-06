@@ -24,7 +24,11 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
     public static final String REFRESH_INTERVAL = "refreshInterval";
     public static final String USERNAME = "username";
 
-
+    /**
+     * Default constructor.
+     * @param framework
+     * @return new instance.
+     */
     public ResourceModelSourceFactory(final Framework framework) {
         this.framework = framework;
     }
@@ -35,6 +39,9 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
         return modelSource;
     }
 
+    /**
+     * Plugin configuration properties.
+     */
     static Description DESC = DescriptionBuilder.builder()
             .name(PROVIDER_NAME)
             .title("RightScale Servers")
