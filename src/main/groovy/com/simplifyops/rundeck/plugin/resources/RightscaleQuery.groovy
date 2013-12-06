@@ -9,6 +9,7 @@ import com.sun.jersey.api.client.filter.ClientFilter
 import com.sun.jersey.api.client.filter.LoggingFilter
 import com.sun.jersey.api.representation.Form
 import org.apache.log4j.Logger;
+import groovyx.gpars.GParsPool
 
 class RightscaleQuery {
     static Logger logger = Logger.getLogger(RightscaleNodes.class);
@@ -31,19 +32,20 @@ class RightscaleQuery {
      * Default constructor.
      */
     RightscaleQuery(String email, String password, String account, String endpoint) {
-        /*
-      * Setup API defaults
-      */
+
+        // API defaults
         Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
         Rest.baseUrl = endpoint;
 
+        // Login to the service
         authenticate(email, password, account, endpoint)
 
+        // Make an initial query to populate data that doesn't change often.
         initialize()
     }
 
     /**
-     * Login and create a session
+     * Login and create a session.
      */
     private void authenticate(String email, String password, String account, String endpoint) {
         // add a filter to set cookies received from the server and to check if login has been triggered
@@ -84,22 +86,29 @@ class RightscaleQuery {
     }
 
     /**
-     * Initialize top level data objects
+     * Initialize data objects that don't change much.
      */
     private void initialize() {
         // clouds
-        requestClouds().each { href, model ->
-
-            requestDatacenters(model.cloud_id)
-            //requestImages(model.cloud_id)
-            requestInstanceTypes(model.cloud_id)
-
+        GParsPool.withPool {
+            def getCloudResources = { cloud_id ->
+                GParsPool.executeAsyncAndWait(
+                        { requestDatacenters(cloud_id) },
+                        { requestInstances(cloud_id) },
+                        { requestInstanceTypes(cloud_id) })
+            }
+            // Get the resources for each of the clouds
+            requestClouds().each { href, model ->
+                getCloudResources.callAsync(model.cloud_id)
+            }
         }
-        // deployments
-        requestDeployments()
 
-        // server_templates
-        requestServerTemplates()
+        GParsPool.withPool {
+            GParsPool.executeAsyncAndWait(
+                    { requestDeployments() },
+                    { requestServerTemplates() })
+        }
+
     }
 
     public Map listServers() {
@@ -109,6 +118,10 @@ class RightscaleQuery {
         return servers;
     }
 
+/**
+ * Query API service for the Servers
+ * @return Map mof models keyed by server href.
+ */
     private Map requestServers() {
         def Map resources = [:]
         def Node root = new RightscaleRequest().get("/api/servers.xml", [view: "instance_detail"])
@@ -152,7 +165,26 @@ class RightscaleQuery {
         return resources
     }
 
+/**
+ * Query API service for a list of instances for the cloud.
+ * @param cloud_id
+ * @return Map of models keyed by cloud href.
+ */
+    private Map requestInstances(String cloud_id) {
+        def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/instances", [view: "extended"])
+        root.instance.each {
+            Map model = parseInstance(it)
+            model.href = root.instance.links.link.find { it.'@rel' == 'self' }?.'@href'
+            instances.put(model.href, model)
+        }
+        return instances
+    }
 
+/**
+ * Query API service for a single Instance
+ * @param instance_href
+ * @return a Model of the instance
+ */
     private Map requestInstance(String instance_href) {
 
         def Node instance = new RightscaleRequest().get(instance_href, [view: "extended"])
@@ -164,6 +196,9 @@ class RightscaleQuery {
         return instances.get(instance_href)
     }
 
+/**
+ * Parse the XML node and populate a Model map.
+ */
     private Map parseInstance(Node instance) {
         def model = [:]
         model.href = instance.links.link.find { it.'@rel' == 'self' }?.'@href'
@@ -184,6 +219,11 @@ class RightscaleQuery {
         return model
     }
 
+/**
+ * Retrieve an Instance
+ * @param href The href to the instance
+ * @return an instance Model map.
+ */
     public Map getInstance(String href) {
         if (!instances.containsKey(href)) {
             requestInstance(href)
@@ -191,10 +231,19 @@ class RightscaleQuery {
         return instances.get(href)
     }
 
+/**
+ * Get a deployment
+ * @param href The href to the deployment
+ * @return a deployment Model map.
+ */
     public Map getDeployment(String href) {
         return listDeployments().get(href)
     }
 
+/**
+ * List all the deployments
+ * @return
+ */
     public Map listDeployments() {
         if (deployments.size() == 0) {
             deployments = requestDeployments()
@@ -202,10 +251,10 @@ class RightscaleQuery {
         return deployments
     }
 
-    /**
-     *
-     * @return Map of Deployments
-     */
+/**
+ * Query Rightscale API service for all the deployments.
+ * @return Map of Deployments keyed by their href
+ */
     private Map requestDeployments() {
         def Map resources = [:]
 
@@ -223,10 +272,10 @@ class RightscaleQuery {
         return resources;
     }
 
-    /**
-     *
-     * @return Map of Tags
-     */
+/**
+ * Query the Rightscale API for the tags assigned to the specified resource.
+ * @return Map of Tags
+ */
     private Collection requestTags(final String href) {
         def results = []
         def request = '/api/tags/by_resource.xml' as Rest;
@@ -258,10 +307,10 @@ class RightscaleQuery {
         return (Map) clouds.get(href)
     }
 
-    /**
-     *
-     * @return Map of Clouds
-     */
+/**
+ * Query the Rightscale API for the Cloud resources.
+ * @return Map of Clouds
+ */
     private Map requestClouds() {
 
         def Node root = new RightscaleRequest().get("/api/clouds.xml", [:])
@@ -301,10 +350,10 @@ class RightscaleQuery {
         return server_templates.get(href)
     }
 
-    /**
-     *
-     * @return Map of ServerTemplates
-     */
+/**
+ * Query the Rightscale API for a single ServerTemplate resources.
+ * @return Model for the ServerTemplate
+ */
     private Map requestServerTemplate(final String href) {
 
         def Node root = new RightscaleRequest().get(href + '.xml', [:])
@@ -330,6 +379,10 @@ class RightscaleQuery {
         return (Map) server_templates.get(href)
     }
 
+/**
+ * Query the Rightscale API for all ServerTemplate resources.
+ * @return
+ */
     private Map requestServerTemplates() {
         def Node root = new RightscaleRequest().get('/api/server_templates.xml', [:])
         root.server_template.each { server_template ->
@@ -362,10 +415,10 @@ class RightscaleQuery {
         return datacenters.get(href)
     }
 
-    /**
-     *
-     * @return Map of Datacenter
-     */
+/**
+ * Query the Rightscale API for a single Datacenter resource.
+ * * @return Model of Datacenter
+ */
     private Map requestDatacenter(final String href) {
         def model = [:]
 
@@ -384,11 +437,11 @@ class RightscaleQuery {
         return model;
     }
 
-    /**
-     * Get all datacenters for the given cloud
-     * @param cloud_id
-     * @return
-     */
+/**
+ * Query the Rightscale API for all Datacenter resources for the specified cloud.
+ * @param cloud_id
+ * @return
+ */
     private Map requestDatacenters(String cloud_id) {
 
         def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/datacenters.xml", [:])
@@ -415,10 +468,10 @@ class RightscaleQuery {
         return subnets.get(href)
     }
 
-    /**
-     *
-     * @return Map of Subnets
-     */
+/**
+ * Query the Rightscale API for a single Subnet resource.
+ * @return Map of Subnets
+ */
     private Map requestSubnet(final String href) {
         def model = [:]
 
@@ -451,10 +504,10 @@ class RightscaleQuery {
         return images.get(href)
     }
 
-    /**
-     *
-     * @return Map of Images
-     */
+/**
+ * Query the Rightscale API for a single Image resource.
+ * @return Map of Images
+ */
     private Map requestImage(final String href) {
         def model = [:]
 
@@ -474,32 +527,12 @@ class RightscaleQuery {
         return model;
     }
 
-    private Map requestImages(String cloud_id) {
-        def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/images.xml", [:])
-        root.image.each { image ->
-            def model = [:]
-            def ref = image.links.link.find { it.'@rel' == 'self' }?.'@href'
-            model.href = ref
-            model.name = image.name.text()
-            model.description = image.description.text()
-            model.cpu_architecture = image.cpu_architecture.text()
-            model.image_type = image.image_type.text()
-            model.virtualization_type = image.virtualization_type.text()
-            model.os_platform = image.os_platform.text()
-
-            images.put(model.href, model)
-            System.out.println("DEBUG: added: " + model.name);
-
-        }
-        return images
-    }
-
-    /**
-     * TODO: Implement this
-     * @param cloud_id
-     * @param instance_id
-     * @return List of maps containing name/value pairs.
-     */
+/**
+ * Query the Rightscale API for all ResourceInput resources for the specified instance.
+ * @param cloud_id
+ * @param instance_id
+ * @return List of maps containing name/value pairs.
+ */
     private Collection requestResourceInputs(final String cloud_id, String instance_id) {
         if (!resource_inputs.containsKey("${cloud_id}/${instance_id}")) {
             System.out.println("DEBUG: Getting inputs for ${cloud_id}/${instance_id}")
@@ -530,10 +563,10 @@ class RightscaleQuery {
         }
         return instance_types.get(href)
     }
-    /**
-     *
-     * @return Map of Instance_types
-     */
+/**
+ * Query the Rightscale API for a single InstanceType resources.
+ * @return Model of the Instance_type
+ */
     private Map requestInstanceType(final String href) {
         def model = [:]
 
@@ -554,7 +587,11 @@ class RightscaleQuery {
         instance_types.put(model.href, model)
         return model;
     }
-
+/**
+ * Query the Rightscale API for all InstanceType resources for the specified cloud.
+ * @param cloud_id
+ * @return
+ */
     private Map requestInstanceTypes(String cloud_id) {
         def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/instance_types.xml", [:])
         root.instance_type.each { instance_type ->
@@ -576,6 +613,10 @@ class RightscaleQuery {
         return instance_types
     }
 
+/**
+ * Query the Rightscale API for all ServerArray resources.
+ * @return
+ */
     private Map requestServerArrays() {
         def Node root = new RightscaleRequest().get("/api/server_arrays", [view: "instance_detail"])
         root.server_array.each {
@@ -601,6 +642,11 @@ class RightscaleQuery {
         return server_arrays;
     }
 
+/**
+ * Query the Rightscale API for all Instances resources for the specified ServerArray.
+ * @param server_array_href
+ * @return
+ */
     private Map requestServerArrayInstances(String server_array_href) {
         Map results = [:]
 
@@ -631,9 +677,12 @@ class RightscaleQuery {
         }
         return results
     }
+
 }
 
-
+/**
+ * Helper class for making Rightscale API requests.
+ */
 class RightscaleRequest {
     /**
      * Get the resource
