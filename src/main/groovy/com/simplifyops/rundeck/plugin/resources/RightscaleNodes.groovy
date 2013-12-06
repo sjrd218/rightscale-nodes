@@ -64,7 +64,7 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     /**
-     * validate required params are set. Used by factory
+     * validate required params are set. Used by the factory.
      * @throws ConfigurationException
      */
     public void validate() throws ConfigurationException {
@@ -80,12 +80,12 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     /**
-     * Query RightScale for their servers and return them as Nodes.
+     * Query RightScale for their instances and return them as Nodes.
      */
     @Override
     public synchronized INodeSet getNodes() throws ResourceModelSourceException {
         System.println("DEBUG: Inside getNodes()...")
-
+        def long starttime = System.currentTimeMillis()
         /**
          * Haven't got any nodes yet so get them synchronously.
          */
@@ -110,6 +110,7 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
 
+        System.println("DEBUG: query time: "+ (System.currentTimeMillis() - starttime))
         /**
          * Return the nodeset
          */
@@ -117,7 +118,7 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     /**
-     * Returns true if the last refresh time was longer ago than the refresh interval
+     * Returns true if the last refresh time was longer ago than the refresh interval.
      */
     private boolean needsRefresh() {
         return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
@@ -127,7 +128,7 @@ public class RightscaleNodes implements ResourceModelSource {
      * Update the NodeSet and reset the last refresh time.
      * @param nodeset
      */
-    void updateNodeSet(final INodeSet nodeset) {
+    private void updateNodeSet(final INodeSet nodeset) {
         this.nodeset = nodeset;
         lastRefresh = System.currentTimeMillis();
     }
@@ -137,7 +138,7 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     /**
-     * Query the RightScale API for servers and map them to Nodes.
+     * Query the RightScale API for instances and map them to Nodes.
      *
      * @return nodeset of Nodes
      */
@@ -155,18 +156,18 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset;
     }
     /**
-     * Query all servers
-     * @param query
-     * @return
+     * Query all servers and get their Instances as Nodes
+     * @param query the RightscaleQuery
+     * @return a node set of Nodes
      */
     private INodeSet queryServers(RightscaleQuery query) {
         /**
-         * List Servers
+         * List the Servers
          */
         def servers = query.listServers()
 
         /**
-         * Create a node set for the result
+         * Create a node set from the result.
          */
         INodeSet nodeset = new NodeSetImpl();
 
@@ -194,7 +195,7 @@ public class RightscaleNodes implements ResourceModelSource {
             setNodeAttribute(newNode, "tags", tags.join(","))
 
             /**
-             * Get this server's Instance as it contains attributes and links to more data.
+             * Get this server's Instance as this points to most of the data.
              */
             def instance = query.getInstance(svr.current_instance_href)
             /**
@@ -212,12 +213,12 @@ public class RightscaleNodes implements ResourceModelSource {
 
     /**
      * Make nodes from ServerArray instances.
-     * @param query
+     * @param query the RightscaleQuery
      * @return a new INodeSet of nodes for each instance in the query result.
      */
     private INodeSet queryServerArrays(RightscaleQuery query) {
         /**
-         * Create a node set for the result
+         * Create a node set from the result.
          */
         def nodeset = new NodeSetImpl();
 
@@ -252,7 +253,7 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     /**
-     * Fill node with generic data from instance model.
+     * Fill node with data from instance model.
      * @param query The rightscale query object
      * @param newNode The Node entry to fill
      * @param instance The map containing instance data.
@@ -339,9 +340,10 @@ public class RightscaleNodes implements ResourceModelSource {
         /**
          * Get the ResourceInputs for this instance
          */
-
         def inputs = []
-        query.getResourceInputs(cloud.href.split("/").last(), instance.href.split("/").last()).each {
+        def String cloud_id = cloud.href.split("/").last()
+        def String instance_id = instance.href.split("/").last()
+        query.getResourceInputs(cloud_id, instance_id).each {
             inputs.addAll(it)
         }
         setNodeAttribute(newNode, "inputs", inputs.join(","))
