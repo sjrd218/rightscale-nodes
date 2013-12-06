@@ -21,7 +21,7 @@ public class RightscaleNodes implements ResourceModelSource {
     private long refreshInterval;
     private String endpoint;
     private String username;
-
+    // Prefix each attribute name with this string.
     private String prefix = "rs_"
 
     /**
@@ -32,6 +32,8 @@ public class RightscaleNodes implements ResourceModelSource {
      * The nodeset filled by the query result.
      */
     private INodeSet nodeset;
+
+    private RightscaleQuery query;
 
     /**
      * Default constructor.
@@ -55,6 +57,10 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
         refreshInterval = refreshSecs * 1000;
+
+        query = new RightscaleQuery(email, password, account, endpoint)
+
+        println("DEBUG: New RightscaleNodes object created.")
     }
 
     /**
@@ -136,7 +142,6 @@ public class RightscaleNodes implements ResourceModelSource {
      * @return nodeset of Nodes
      */
     INodeSet query() {
-        RightscaleQuery query = new RightscaleQuery(email, password, account, endpoint)
 
         INodeSet nodeset = new NodeSetImpl();
 
@@ -149,7 +154,11 @@ public class RightscaleNodes implements ResourceModelSource {
          */
         return nodeset;
     }
-
+    /**
+     * Query all servers
+     * @param query
+     * @return
+     */
     private INodeSet queryServers(RightscaleQuery query) {
         /**
          * List Servers
@@ -200,6 +209,36 @@ public class RightscaleNodes implements ResourceModelSource {
         return nodeset
     }
 
+
+    /**
+     * Make nodes from ServerArray instances.
+     * @param query
+     * @return a new INodeSet of nodes for each instance in the query result.
+     */
+    private INodeSet queryServerArrays(RightscaleQuery query) {
+        /**
+         * Create a node set for the result
+         */
+        def nodeset = new NodeSetImpl();
+
+        def instances = query.listServerArrayInstances()
+        instances.each { href, model ->
+            println("DEBUG: queryServerArrays: creating node for : " + model.name)
+
+            NodeEntryImpl newNode = createNode(model.name)
+            fillNode(query, newNode, model)
+            if (model.containsKey("server_array")) {
+                setNodeAttribute(newNode, "server_array", model.server_array)
+                def tagname = "rs:array=${model.server_array}"
+                if (!newNode.tags.contains(tagname)) newNode.tags.add(tagname)
+            }
+
+            nodeset.putNode(newNode)
+        }
+
+        return nodeset;
+    }
+
     /**
      * Convenience method to create a new Node with defaults.
      * @param name Name of the node
@@ -220,6 +259,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     private void fillNode(RightscaleQuery query, NodeEntryImpl newNode, Map instance) {
         setNodeAttribute(newNode, "resource_uid", instance.resource_uid)
+
         setNodeAttribute(newNode, "public_ip_address", instance.public_ip_address)
         setNodeAttribute(newNode, "private_ip_address", instance.private_ip_address)
         setNodeAttribute(newNode, "public_dns_name", instance.public_dns_name)
@@ -243,7 +283,7 @@ public class RightscaleNodes implements ResourceModelSource {
         if (!newNode.tags.contains("rs:${cloud.name}")) newNode.tags.add("rs:${cloud.name}")
 
         /**
-         * Gt the Deployment
+         * Get the Deployment
          */
         def deployment = query.getDeployment(instance.deployment_href)
         setNodeAttribute(newNode, "deployment", deployment.name)
@@ -288,42 +328,24 @@ public class RightscaleNodes implements ResourceModelSource {
         }
 
         /**
-         * Get the Tags for this Server.
+         * Get the Tags for this Instance.
          */
         def tags = query.getTags(instance.href)
         tags.each {
             if (!newNode.tags.contains(it)) newNode.tags.add("rs:${it}")
         }
         setNodeAttribute(newNode, "tags", tags.join(","))
-    }
 
-    /**
-     * Make nodes from ServerArray instances.
-     * @param query
-     * @return a new INodeSet of nodes for each instance in the query result.
-     */
-    private INodeSet queryServerArrays(RightscaleQuery query) {
         /**
-         * Create a node set for the result
+         * Get the ResourceInputs for this instance
          */
-        def nodeset = new NodeSetImpl();
 
-        def instances = query.listServerArrayInstances()
-        instances.each { href, model ->
-            println("DEBUG: queryServerArrays: creating node for : " + model.name)
-
-            NodeEntryImpl newNode = createNode(model.name)
-            fillNode(query, newNode, model)
-            if (model.containsKey("server_array")) {
-                setNodeAttribute(newNode, "server_array", model.server_array)
-                def tagname = "rs:array=${model.server_array}"
-                if (!newNode.tags.contains(tagname)) newNode.tags.add(tagname)
-            }
-
-            nodeset.putNode(newNode)
+        def inputs = []
+        query.getResourceInputs(cloud.href.split("/").last(), instance.href.split("/").last()).each {
+            inputs.addAll(it)
         }
+        setNodeAttribute(newNode, "inputs", inputs.join(","))
 
-        return nodeset;
     }
 
 }

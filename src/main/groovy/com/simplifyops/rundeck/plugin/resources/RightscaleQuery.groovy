@@ -25,6 +25,7 @@ class RightscaleQuery {
     Map tags = [:]
     Map server_arrays = [:]
     Map server_array_instances = [:]
+    Map resource_inputs = [:]
 
     /**
      * Default constructor.
@@ -38,6 +39,7 @@ class RightscaleQuery {
 
         authenticate(email, password, account, endpoint)
 
+        initialize()
     }
 
     /**
@@ -79,6 +81,25 @@ class RightscaleQuery {
         if (response.status != 204) {
             throw new ResourceModelSourceException("RightScale login error. " + response)
         }
+    }
+
+    /**
+     * Initialize top level data objects
+     */
+    private void initialize() {
+        // clouds
+        requestClouds().each { href, model ->
+
+            requestDatacenters(model.cloud_id)
+            //requestImages(model.cloud_id)
+            requestInstanceTypes(model.cloud_id)
+
+        }
+        // deployments
+        requestDeployments()
+
+        // server_templates
+        requestServerTemplates()
     }
 
     public Map listServers() {
@@ -251,6 +272,7 @@ class RightscaleQuery {
             model.name = it.name.text()
             model.description = it.description.text()
             model.cloud_type = it.cloud_type.text()
+            model.cloud_id = href.split("/").last()
             // get the link relations
             model.datacenters_href = it.links.link.find { it.'@rel' == 'datacenters' }?.'@href'
             model.instance_types_href = it.links.link.find { it.'@rel' == 'instance_types' }?.'@href'
@@ -308,6 +330,31 @@ class RightscaleQuery {
         return (Map) server_templates.get(href)
     }
 
+    private Map requestServerTemplates() {
+        def Node root = new RightscaleRequest().get('/api/server_templates.xml', [:])
+        root.server_template.each { server_template ->
+            def ref = server_template.links.link.find { it.'@rel' == 'self' }?.'@href'
+            def model = [:]
+            model.href = ref
+            model.name = server_template.name.text()
+            model.description = server_template.description.text()
+            model.revision = server_template.revision.text()
+            // get the link relations
+            model.multi_cloud_images_href = server_template.links.link.find { it.'@rel' == 'multi_cloud_images' }?.'@href'
+            model.default_multi_cloud_image_href = server_template.links.link.find { it.'@rel' == 'default_multi_cloud_image' }?.'@href'
+            model.inputs_href = server_template.links.link.find { it.'@rel' == 'inputs' }?.'@href'
+            model.publication_href = server_template.links.link.find { it.'@rel' == 'publication' }?.'@href'
+            model.alert_specs_href = server_template.links.link.find { it.'@rel' == 'alert_specs' }?.'@href'
+            model.runnable_bindings_href = server_template.links.link.find { it.'@rel' == 'runnable_bindings' }?.'@href'
+            model.cookbook_attachments_href = server_template.links.link.find { it.'@rel' == 'cookbook_attachments' }?.'@href'
+
+            System.out.println("DEBUG: ServerTemplate: " + model.name);
+            server_templates.put(model.href, model)
+
+        }
+        return server_templates
+    }
+
     Map getDatacenter(String href) {
         if (!datacenters.containsKey(href)) {
             requestDatacenter(href)
@@ -317,7 +364,7 @@ class RightscaleQuery {
 
     /**
      *
-     * @return Map of Datacenters
+     * @return Map of Datacenter
      */
     private Map requestDatacenter(final String href) {
         def model = [:]
@@ -335,6 +382,30 @@ class RightscaleQuery {
         System.out.println("DEBUG: added: " + model.name);
 
         return model;
+    }
+
+    /**
+     * Get all datacenters for the given cloud
+     * @param cloud_id
+     * @return
+     */
+    private Map requestDatacenters(String cloud_id) {
+
+        def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/datacenters.xml", [:])
+        root.datacenter.each { datacenter ->
+            def model = [:]
+            def ref = datacenter.links.link.find { it.'@rel' == 'self' }?.'@href'
+            model.href = ref
+            model.name = datacenter.name.text()
+            model.description = datacenter.description.text()
+            model.resource_uid = datacenter.resource_uid.text()
+            // get the link relations
+            model.cloud_href = datacenter.links.link.find { it.'@rel' == 'cloud' }?.'@href'
+            model.cloud_id = cloud_id
+            datacenters.put(model.href, model)
+            System.out.println("DEBUG: added: " + model.name);
+        }
+        return datacenters
     }
 
     Map getSubnet(String href) {
@@ -403,6 +474,56 @@ class RightscaleQuery {
         return model;
     }
 
+    private Map requestImages(String cloud_id) {
+        def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/images.xml", [:])
+        root.image.each { image ->
+            def model = [:]
+            def ref = image.links.link.find { it.'@rel' == 'self' }?.'@href'
+            model.href = ref
+            model.name = image.name.text()
+            model.description = image.description.text()
+            model.cpu_architecture = image.cpu_architecture.text()
+            model.image_type = image.image_type.text()
+            model.virtualization_type = image.virtualization_type.text()
+            model.os_platform = image.os_platform.text()
+
+            images.put(model.href, model)
+            System.out.println("DEBUG: added: " + model.name);
+
+        }
+        return images
+    }
+
+    /**
+     * TODO: Implement this
+     * @param cloud_id
+     * @param instance_id
+     * @return List of maps containing name/value pairs.
+     */
+    private Collection requestResourceInputs(final String cloud_id, String instance_id) {
+        if (!resource_inputs.containsKey("${cloud_id}/${instance_id}")) {
+            System.out.println("DEBUG: Getting inputs for ${cloud_id}/${instance_id}")
+            def inputs = []
+            //  /api/clouds/:cloud_id/instances/:instance_id/inputs
+            def href = "/api/clouds/${cloud_id}/instances/${instance_id}/inputs"
+
+            def Node root = new RightscaleRequest().get(href + '.xml', [:])
+            root.input.each { input ->
+                def model = [:]
+                model.name = input.name.text()
+                model.value = input.value.text()
+                inputs.add(model)
+            }
+            resource_inputs.put("${cloud_id}/${instance_id}", inputs)
+        }
+
+        return resource_inputs.get("${cloud_id}/${instance_id}")
+    }
+
+    Collection getResourceInputs(final String cloud_id, String instance_id) {
+        return requestResourceInputs(cloud_id, instance_id)
+    }
+
     Map getInstanceType(String href) {
         if (!instance_types.containsKey(href)) {
             requestInstanceType(href)
@@ -432,6 +553,27 @@ class RightscaleQuery {
         System.out.println("DEBUG: added: " + model.name);
         instance_types.put(model.href, model)
         return model;
+    }
+
+    private Map requestInstanceTypes(String cloud_id) {
+        def Node root = new RightscaleRequest().get("/api/clouds/${cloud_id}/instance_types.xml", [:])
+        root.instance_type.each { instance_type ->
+            def model = [:]
+            def ref = instance_type.links.link.find { it.'@rel' == 'self' }?.'@href'
+            model.href = ref
+            model.name = instance_type.name.text()
+            model.description = instance_type.description.text()
+            model.memory = instance_type.memory.text()
+            model.cpu_architecture = instance_type.cpu_architecture.text()
+            model.local_disks = instance_type.local_disks.text()
+            model.local_disk_size = instance_type.local_disk_size.text()
+            model.cpu_count = instance_type.cpu_count.text()
+            model.cpu_speed = instance_type.cpu_speed.text()
+            model.cloud_href = instance_type.links.link.find { it.'@rel' == 'cloud' }?.'@href'
+            System.out.println("DEBUG: added: " + model.name);
+            instance_types.put(model.href, model)
+        }
+        return instance_types
     }
 
     private Map requestServerArrays() {
