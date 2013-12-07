@@ -2,6 +2,8 @@
 
 Generates Rundeck Nodes from the servers and server_arrays in your RightScale account.
 
+**Note**: Requires Rundeck 2.0
+
 ## Build
 
     ./gradlew clean build
