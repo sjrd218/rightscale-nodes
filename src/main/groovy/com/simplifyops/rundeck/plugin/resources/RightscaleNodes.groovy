@@ -33,7 +33,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     private INodeSet nodeset;
 
-    private RightscaleQuery query;
+    private RightscaleAPI query;
 
     /**
      * Default constructor.
@@ -58,7 +58,7 @@ public class RightscaleNodes implements ResourceModelSource {
         }
         refreshInterval = refreshSecs * 1000;
 
-        query = new RightscaleQuery(email, password, account, endpoint)
+        query = new RightscaleAPIRequest(email, password, account, endpoint)
 
         println("DEBUG: New RightscaleNodes object created.")
     }
@@ -67,7 +67,7 @@ public class RightscaleNodes implements ResourceModelSource {
      * validate required params are set. Used by the factory.
      * @throws ConfigurationException
      */
-    public void validate() throws ConfigurationException {
+    void validate() throws ConfigurationException {
         if (null == email) {
             throw new ConfigurationException("email is required");
         }
@@ -110,7 +110,7 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
 
-        System.println("DEBUG: query time: "+ (System.currentTimeMillis() - starttime))
+        System.println("DEBUG: query time: " + (System.currentTimeMillis() - starttime))
         /**
          * Return the nodeset
          */
@@ -133,10 +133,6 @@ public class RightscaleNodes implements ResourceModelSource {
         lastRefresh = System.currentTimeMillis();
     }
 
-    private setNodeAttribute(NodeEntryImpl node, String key, String value) {
-        node.setAttribute(prefix + key, value)
-    }
-
     /**
      * Query the RightScale API for instances and map them to Nodes.
      *
@@ -148,7 +144,7 @@ public class RightscaleNodes implements ResourceModelSource {
 
         nodeset.putNodes(queryServers(query))
 
-        nodeset.putNodes(queryServerArrays(query))
+        //nodeset.putNodes(queryServerArrays(query))
 
         /**
          * Return the nodeset
@@ -160,83 +156,66 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param query the RightscaleQuery
      * @return a node set of Nodes
      */
-    private INodeSet queryServers(RightscaleQuery query) {
-        /**
-         * List the Servers
-         */
-        def servers = query.listServers()
-
+    INodeSet queryServers(RightscaleAPI query) {
         /**
          * Create a node set from the result.
          */
-        INodeSet nodeset = new NodeSetImpl();
-
+        def nodeset = new NodeSetImpl();
+        /**
+         * List the Servers
+         */
+        def servers = query.getServers().values()
         System.out.println("DEBUG: Iterating over ${servers.size()} servers")
-        servers.each { href, svr ->
-            System.println("DEBUG: processing server: " + svr.name)
-            // Define a new Node
-            NodeEntryImpl newNode = createNode(svr.name)
-            newNode.setDescription(svr.description)
-            setNodeAttribute(newNode, "state", svr.state)
-            setNodeAttribute(newNode, "created_at", svr.created_at)
-            /**
-             * Use the server's deployment name as a tag and attribute.
-             */
-            def deployment = query.getDeployment(svr.deployment_href)
-            setNodeAttribute(newNode, "deployment", deployment.name)
-            if (!newNode.tags.contains("rs:${deployment.name}")) newNode.tags.add("rs:${deployment.name}")
-            /**
-             * Get the Tags for this Server.
-             */
-            def tags = query.getTags(svr.href)
-            tags.each {
-                if (!newNode.tags.contains(it)) newNode.tags.add("rs:${it}")
-            }
-            setNodeAttribute(newNode, "tags", tags.join(","))
 
-            /**
-             * Get this server's Instance as this points to most of the data.
-             */
-            def instance = query.getInstance(svr.current_instance_href)
-            /**
-             * Populate the node with the instance model data.
-             */
-            fillNode(query, newNode, instance)
-            /**
-             * Add the new node to the nodeset.
-             */
-            nodeset.putNode(newNode);
+        servers.each { server ->
+            // Only process servers with a current instance.
+            if (server.links.containsKey('current_instance')) {
+                def NodeEntryImpl newNode = new NodeEntryImpl()
+                server.populate(newNode)
+                server.links.each { rel, href ->
+                    if (!rel.equals('self') && query.getResources(rel).containsKey(href)) {
+                        def RightscaleResource linkedResource = query.getResources(rel).get(href)
+                        linkedResource.populate(newNode)
+                    }
+                }
+                def cloud_href = server.links['cloud']
+                if (null == cloud_href) {
+                    throw new RuntimeException("cloud link not found for server: " + server.attributes['name'])
+                }
+                def cloud_id = cloud_href.split("/").last()
+                def InstanceResource instance = query.getInstances(cloud_id).get(server.links['current_instance'])
+                instance.populate(newNode)
+                instance.links.each { rel, href ->
+                    if (!rel.equals('self') && query.getResources(rel).containsKey(href)) {
+                        def RightscaleResource linkedResource = query.getResources(rel).get(href)
+                        linkedResource.populate(newNode)
+                    }
+                }
+                // Add the node to the result.
+                nodeset.putNode(newNode)
+            }
         }
         return nodeset
     }
-
 
     /**
      * Make nodes from ServerArray instances.
      * @param query the RightscaleQuery
      * @return a new INodeSet of nodes for each instance in the query result.
      */
-    private INodeSet queryServerArrays(RightscaleQuery query) {
+    INodeSet queryServerArrays(RightscaleAPI query) {
         /**
          * Create a node set from the result.
          */
         def nodeset = new NodeSetImpl();
-
-        def instances = query.listServerArrayInstances()
-        instances.each { href, model ->
-            println("DEBUG: queryServerArrays: creating node for : " + model.name)
-
-            NodeEntryImpl newNode = createNode(model.name)
-            fillNode(query, newNode, model)
-            if (model.containsKey("server_array")) {
-                setNodeAttribute(newNode, "server_array", model.server_array)
-                def tagname = "rs:array=${model.server_array}"
-                if (!newNode.tags.contains(tagname)) newNode.tags.add(tagname)
-            }
-
-            nodeset.putNode(newNode)
+        /**
+         * List the ServerArrays
+         */
+        def serverArrays = query.getServerArrays().values()
+        System.out.println("DEBUG: Iterating over ${serverArrays.size()} server arrays")
+        serverArrays.each { serverArray ->
+            //serverArray.attributes['instances_count']
         }
-
         return nodeset;
     }
 
@@ -245,109 +224,10 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param name Name of the node
      * @return a new Node
      */
-    private NodeEntryImpl createNode(final String name) {
+    NodeEntryImpl createNode(final String name) {
         NodeEntryImpl newNode = new NodeEntryImpl(name);
         newNode.setUsername(username) // - Config property.
         newNode.setOsFamily("unix");  // - Hard coded.
         return newNode
     }
-
-    /**
-     * Fill node with data from instance model.
-     * @param query The rightscale query object
-     * @param newNode The Node entry to fill
-     * @param instance The map containing instance data.
-     */
-    private void fillNode(RightscaleQuery query, NodeEntryImpl newNode, Map instance) {
-        setNodeAttribute(newNode, "resource_uid", instance.resource_uid)
-
-        setNodeAttribute(newNode, "public_ip_address", instance.public_ip_address)
-        setNodeAttribute(newNode, "private_ip_address", instance.private_ip_address)
-        setNodeAttribute(newNode, "public_dns_name", instance.public_dns_name)
-        setNodeAttribute(newNode, "private_dns_name", instance.private_dns_name)
-        setNodeAttribute(newNode, "user_data", instance.user_data)
-
-        newNode.setHostname(instance.public_ip_address) // TODO: convention needed here.
-
-        /**
-         * Get the ServerTemplate name
-         */
-        def server_template = query.getServerTemplate(instance.server_template_href)
-        setNodeAttribute(newNode, "server_template", server_template.name)
-
-        /**
-         * Get the Cloud name and type
-         */
-        def cloud = query.getCloud(instance.cloud_href)
-        setNodeAttribute(newNode, "cloud", cloud.name)
-        setNodeAttribute(newNode, "cloud_type", cloud.cloud_type)
-        if (!newNode.tags.contains("rs:${cloud.name}")) newNode.tags.add("rs:${cloud.name}")
-
-        /**
-         * Get the Deployment
-         */
-        def deployment = query.getDeployment(instance.deployment_href)
-        setNodeAttribute(newNode, "deployment", deployment.name)
-        if (!newNode.tags.contains("rs:${deployment.name}")) newNode.tags.add("rs:${deployment.name}")
-
-        /**
-         * Get the Datacenter name
-         */
-        if (instance?.datacenter_href) {
-            def datacenter = query.getDatacenter(instance.datacenter_href)
-            setNodeAttribute(newNode, "datacenter", datacenter.name)
-            if (!newNode.tags.contains("rs:${datacenter.name}")) newNode.tags.add("rs:${datacenter.name}")
-        }
-        /**
-         * Get the Subnet name and state
-         */
-        if (instance?.subnet_href) {
-            def subnet = query.getSubnet(instance.subnet_href)
-            setNodeAttribute(newNode, "subnet", subnet.name)
-            setNodeAttribute(newNode, "subnet_visibility", subnet.state)
-            setNodeAttribute(newNode, "subnet_state", subnet.visibility)
-        }
-        /**
-         * Get the Image to get at cpu architecture
-         */
-        if (instance?.image_href) {
-            def image = query.getImage(instance.image_href)
-            setNodeAttribute(newNode, "image", image.name)
-            setNodeAttribute(newNode, "cpu_architecture", image.cpu_architecture)
-            setNodeAttribute(newNode, "virtualization_type", image.virtualization_type)
-            newNode.setOsArch(image.cpu_architecture)  // TODO: convention here
-        }
-        /**
-         * Get the InstanceType for machine level info.
-         */
-        if (instance?.instance_type_href) {
-            def instance_type = query.getInstanceType(instance.instance_type_href)
-            setNodeAttribute(newNode, "instance_type", instance_type.name)
-            setNodeAttribute(newNode, "memory", instance_type.memory)
-            setNodeAttribute(newNode, "cpu_speed", instance_type.cpu_speed)
-            setNodeAttribute(newNode, "local_disks", instance_type.local_disks)
-        }
-
-        /**
-         * Get the Tags for this Instance.
-         */
-        def tags = query.getTags(instance.href)
-        tags.each {
-            if (!newNode.tags.contains(it)) newNode.tags.add("rs:${it}")
-        }
-        setNodeAttribute(newNode, "tags", tags.join(","))
-
-        /**
-         * Get the ResourceInputs for this instance
-         */
-        def inputs = []
-        def String cloud_id = cloud.href.split("/").last()
-        def String instance_id = instance.href.split("/").last()
-        query.getResourceInputs(cloud_id, instance_id).each {
-            inputs.addAll(it)
-        }
-        setNodeAttribute(newNode, "inputs", inputs.join(","))
-
-    }
-
 }
