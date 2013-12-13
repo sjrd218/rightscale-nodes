@@ -2,8 +2,6 @@ package com.simplifyops.rundeck.plugin.resources
 
 import org.apache.log4j.Logger
 
-import java.util.concurrent.ConcurrentHashMap
-
 /**
  *
  */
@@ -237,10 +235,7 @@ class RightscaleBasicCache implements RightscaleCache {
     Map<String, RightscaleResource> getSshKeys(String cloud_id) {
         return getResources('ssh_key')
     }
-    @Override
-    RightscaleResource getSshKey(String href) {
-        return getResources('ssh_key').get(href)
-    }
+
     @Override
     void updateSshKeys(Map<String, RightscaleResource> ssh_keys) {
         storeResources('ssh_key',ssh_keys)
