@@ -37,6 +37,8 @@ public class RightscaleNodes implements ResourceModelSource {
 
     private boolean initialized = false
 
+    private Thread refreshThread
+
     /**
      * Default constructor used by RightscaleNodesFactory. Uses RightscaleAPIRequest for querying.
      * @param configuration Properties containing plugin configuration values.
@@ -111,8 +113,11 @@ public class RightscaleNodes implements ResourceModelSource {
         initialized = true
     }
 
+    /**
+     * Populate the cache.
+     */
     void loadCache() {
-
+        def long starttime = System.currentTimeMillis()
         GParsPool.withPool {
             GParsPool.executeAsyncAndWait(
                     { cache.updateClouds(query.getClouds()) },
@@ -124,7 +129,6 @@ public class RightscaleNodes implements ResourceModelSource {
         }
 
         def clouds = cache.getClouds().values()
-        System.out.println("DEBUG: getting resources for ${clouds.size()} clouds.")
         clouds.each { cloud ->
             def cloud_id = cloud.getId()
             GParsPool.withPool {
@@ -151,6 +155,7 @@ public class RightscaleNodes implements ResourceModelSource {
             def server_array_id = it.getId()
             cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
         }
+        System.println("DEBUG: loadCache() time: " + (System.currentTimeMillis() - starttime))
     }
 
     /**
@@ -158,14 +163,13 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     @Override
     public synchronized INodeSet getNodes() throws ResourceModelSourceException {
-        System.println("DEBUG: Inside getNodes()...")
         def long starttime = System.currentTimeMillis()
         /**
          * Haven't got any nodes yet so get them synchronously.
          */
         if (null == nodeset) {
             System.println("DEBUG: Getting nodes synchronously first time.")
-            updateNodeSet(refresh());
+            nodeset = refresh()
 
         } else {
 
@@ -178,13 +182,12 @@ public class RightscaleNodes implements ResourceModelSource {
              * Query asynchronously.
              */
             System.println("DEBUG: Asynchronously getting nodes.")
-            Closure queryRequest = { updateNodeSet(refresh()) }
-            GParsPool.withPool() {
-                queryRequest.callAsync().get()
+            if (!asyncRefreshRunning()) {
+                refreshThread = Thread.start { nodeset = refresh() }
             }
         }
 
-        System.println("DEBUG: query time: " + (System.currentTimeMillis() - starttime))
+        System.println("DEBUG: getNodes() time: " + (System.currentTimeMillis() - starttime))
         /**
          * Return the nodeset
          */
@@ -198,15 +201,9 @@ public class RightscaleNodes implements ResourceModelSource {
         return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
     }
 
-    /**
-     * Update the NodeSet and reset the last refresh time.
-     * @param nodeset
-     */
-    private void updateNodeSet(final INodeSet nodeset) {
-        this.nodeset = nodeset;
-        lastRefresh = System.currentTimeMillis();
+    private boolean asyncRefreshRunning() {
+         return null != refreshThread && refreshThread.isAlive()
     }
-
     /**
      * Query the RightScale API for instances and map them to Nodes.
      *
@@ -222,15 +219,15 @@ public class RightscaleNodes implements ResourceModelSource {
         /**
          * Generate the nodes.
          */
-        INodeSet nodeset = new NodeSetImpl();
-        nodeset.putNodes(getServerNodes(cache))
-        nodeset.putNodes(getServerArrayNodes(cache))
+        INodeSet nodes = new NodeSetImpl();
+        nodes.putNodes(getServerNodes(cache))
+        nodes.putNodes(getServerArrayNodes(cache))
 
-        /**
-         * Return the nodeset
-         */
-        return nodeset;
+        lastRefresh = System.currentTimeMillis();
+
+        return nodes;
     }
+
     /**
      * Query all servers and get their Instances as Nodes
      * @param api the RightscaleQuery
