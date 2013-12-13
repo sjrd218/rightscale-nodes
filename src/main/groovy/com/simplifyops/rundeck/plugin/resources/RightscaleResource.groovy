@@ -1,6 +1,7 @@
 package com.simplifyops.rundeck.plugin.resources
 
 import com.dtolabs.rundeck.core.common.NodeEntryImpl
+import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 
 /**
  *
@@ -54,10 +55,17 @@ class RightscaleResource {
         return links['self']
     }
 
+    public String getId() {
+        String href = links['self']
+        if (null == href) throw new ResourceModelSourceException("Could not get id. resource does not have a link to self.")
+        return href.split("/").last()
+    }
+
     void populate(NodeEntryImpl node) {
         attributes.each { name, value ->
             node.setAttribute(generateAttributeName(name), value)
         }
+        node.setHostname(attributes['public_dns_name'])
     }
 
     String generateAttributeName(String name) {
@@ -221,8 +229,32 @@ class InstanceResource extends RightscaleResource {
         attributes['updated_at'] = xmlNode.updated_at.text()
     }
 
+
     static InstanceResource create(Node xmlNode) {
         return new InstanceResource(xmlNode)
+    }
+    /**
+     * Only includes Instances that are in state 'operational'.
+     * @param xmlNode
+     * @param key
+     * @param builder
+     * @return
+     */
+    static Map burst(Node xmlNode, String key, Closure builder) {
+        def results = [:]
+        xmlNode[key].each {
+            if ("operational".equals(it.state.text())) {
+                def RightscaleResource r = builder(it)
+                results[r.links['self']] = r
+            }
+        }
+        return results
+    }
+
+    @Override
+    void populate(NodeEntryImpl node) {
+        super.populate(node)
+        node.setHostname(attributes['public_ip_address'])
     }
 }
 
@@ -339,21 +371,30 @@ class SubnetResource extends RightscaleResource {
     }
 }
 
-class InputsResource extends RightscaleResource {
+class InputResource extends RightscaleResource {
 
-    InputsResource() {
+    InputResource() {
         super()
         setPrefix('inputs')
     }
 
-    InputsResource(Node xmlNode) {
+    InputResource(Node xmlNode) {
         this()
         attributes['name'] = xmlNode.name.text()
         attributes['value'] = xmlNode.value.text()
+        links['self'] = '/dummy/inputs/' + attributes['name']
     }
 
-    static InputsResource create(Node xmlNode) {
-        return new InputsResource(xmlNode)
+    static InputResource create(Node xmlNode) {
+        return new InputResource(xmlNode)
+    }
+
+    @Override
+    void populate(NodeEntryImpl node) {
+        // Replace slashes with dots.
+        def attrName = attributes['name'].replace('/', '.')
+        // set the node attribute.
+        node.setAttribute(generateAttributeName(attrName), attributes['value'])
     }
 }
 
