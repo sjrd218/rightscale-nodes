@@ -108,9 +108,11 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     void initialize() {
-        this.query.initialize()
-        this.cache.initialize()
-        initialized = true
+        if(!initialized){
+            this.query.initialize()
+            this.cache.initialize()
+            initialized = true
+        }
     }
 
     /**
