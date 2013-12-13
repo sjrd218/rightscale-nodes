@@ -17,7 +17,7 @@ public class RightscaleNodesTest {
      * Populate the cache with test data.
      * @param cache
      */
-    void initializeCache(RightscaleCache cache) {
+    void initializeCache(RightscaleBasicCache cache) {
         cache.updateClouds(
                 CloudResource.burst(new XmlParser().parseText(XmlData.CLOUDS),
                         'cloud', CloudResource.&create))
@@ -31,8 +31,8 @@ public class RightscaleNodesTest {
                 ImageResource.burst(new XmlParser().parseText(XmlData.IMAGES),
                         'image', ImageResource.&create))
         cache.updateInputs(
-                InputsResource.burst(new XmlParser().parseText(XmlData.INPUTS),
-                        'input', InputsResource.&create))
+                InputResource.burst(new XmlParser().parseText(XmlData.INPUTS),
+                        'input', InputResource.&create))
         cache.updateInstances(
                 InstanceResource.burst(new XmlParser().parseText(XmlData.INSTANCES),
                         'instance', InstanceResource.&create))
@@ -48,12 +48,18 @@ public class RightscaleNodesTest {
         cache.updateServers(
                 ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
                         'server', ServerResource.&create))
+        cache.updateSshKeys(
+                SshKeyResource.burst(new XmlParser().parseText(XmlData.SSH_KEYS),
+                        'ssh_key', SshKeyResource.&create))
+        cache.updateSubnets(
+                SubnetResource.burst(new XmlParser().parseText(XmlData.SUBNETS),
+                        'subnet', SubnetResource.&create))
     }
 
 
     @Test
     public void cacheRefresh() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         initializeCache(cache)
         cache.cleanUp()
     }
@@ -94,12 +100,12 @@ public class RightscaleNodesTest {
     }
 
     @Test
-    public void queryServers() {
-        def RightscaleCache cache = new RightscaleCache()
+    public void getServerNodes() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         initializeCache(cache)
         def rightscaleNodes = new RightscaleNodes(createConfigProperties())
 
-        def nodeSet =  rightscaleNodes.queryServers(cache)
+        def nodeSet =  rightscaleNodes.getServerNodes(cache)
 
         Assert.assertEquals(2,nodeSet.getNodes().size())
         def nodenames = nodeSet.getNodeNames()
@@ -137,20 +143,91 @@ public class RightscaleNodesTest {
         Assert.assertEquals("resource_machine_2329921984",node1Attrs['image.resource_uid'])
         Assert.assertEquals("machine",node1Attrs['image.image_type'])
         // ssh_key
-        //Assert.assertEquals("attrs"+node1Attrs,"resource_4149218284",node1Attrs['ssh_key.resource_uid'])
-
+        Assert.assertEquals("attrs"+node1Attrs,"resource_913473243",node1Attrs['ssh_key.resource_uid'])
         // tags
         Assert.assertEquals("tags:"+node1.getTags(),"rs:name_3567039744,rs:Bob's Eucalyptus 125015575",node1.getTags().join(","))
     }
     @Test
-    public void queryServerArrays() {
-        def RightscaleCache cache = new RightscaleCache()
+    public void getServerArrayNodes() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         initializeCache(cache)
         def rightscaleNodes = new RightscaleNodes(createConfigProperties())
 
-        def nodeSet =  rightscaleNodes.queryServerArrays(cache)
+        def nodeSet =  rightscaleNodes.getServerArrayNodes(cache)
 
         Assert.assertEquals(0,nodeSet.getNodes().size())
 
+    }
+
+    @Test
+    public void loadCache() {
+        /**
+         * Create API object to simulate the API service.
+         */
+        def  query = new RightscaleBasicCache()
+        initializeCache(query)
+        /**
+         * Create an empty cache.
+         */
+        def  cache = new RightscaleBasicCache()
+        /**
+         * Create the nodes object.
+         */
+        def nodes = new RightscaleNodes(createConfigProperties(), query, cache)
+        /**
+         * Invoke the loadCache method.
+         */
+        nodes.loadCache()
+
+        /*
+        Assert.assertEquals(false,cache.needsRefresh())
+        */
+
+
+        /**
+         * Confirm RightscaleNodes has populated the cache with base data.
+         */
+        Assert.assertEquals(query.getClouds().size(),cache.getClouds().size())
+        Assert.assertEquals(query.getDeployments().size(),cache.getDeployments().size())
+        Assert.assertEquals(query.getServers().size(),cache.getServers().size())
+        Assert.assertEquals(query.getServerTemplates().size(),cache.getServerTemplates().size())
+        Assert.assertEquals(query.getServerArrays().size(),cache.getServerArrays().size())
+        cache.getClouds().values().each { cloud ->
+            Assert.assertEquals(2,cache.getDatacenters(cloud.getId()).size())
+            Assert.assertEquals(2,cache.getInstanceTypes(cloud.getId()).size())
+            Assert.assertEquals(2,cache.getSshKeys(cloud.getId()).size())
+            Assert.assertEquals(2,cache.getSubnets(cloud.getId()).size())
+            Assert.assertEquals(2,cache.getInstances(cloud.getId()).size())
+            def instance0 = cache.getInstances(cloud.getId()).values().asList().first()
+            Assert.assertTrue(instance0 instanceof InstanceResource)
+            Assert.assertEquals("name_642936808",instance0.attributes['name'])
+        }
+        // TODO: Check more deeply.
+    }
+
+
+
+    @Test
+    public void getNodes() {
+        /**
+         * Create API object to simulate the API service.
+         */
+        def  query = new RightscaleBasicCache()
+        initializeCache(query)
+        /**
+         * Create an empty cache.
+         */
+        def  cache = new RightscaleBasicCache()
+        /**
+         * Create the nodes object.
+         */
+        def nodes = new RightscaleNodes(createConfigProperties(), query, cache)
+        /**
+         * Invoke the loadCache method.
+         */
+        def nodeset = nodes.getNodes()
+
+        Assert.assertEquals(2,nodeset.getNodes().size())
+        Assert.assertEquals(false,nodes.needsRefresh())
     }
 }

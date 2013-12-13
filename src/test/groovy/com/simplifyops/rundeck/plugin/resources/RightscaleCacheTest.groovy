@@ -11,7 +11,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void constructor() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         Assert.assertTrue(cache.getClouds().size()==0)
         Assert.assertTrue(cache.getDatacenters().size()==0)
         Assert.assertTrue(cache.getDeployments().size()==0)
@@ -22,18 +22,15 @@ public class RightscaleCacheTest {
         Assert.assertTrue(cache.getServerArrays().size()==0)
         Assert.assertTrue(cache.getServerTemplates().size()==0)
         Assert.assertTrue(cache.getServers().size()==0)
+        Assert.assertTrue(cache.getSshKeys().size()==0)
         Assert.assertTrue(cache.getTags().size()==0)
     }
 
-    @Test
-    public void getCollection() {
-        def RightscaleCache cache = new RightscaleCache()
-        Assert.assertNotNull(cache.getResources('clouds'))
-    }
+
 
     @Test
     public void load() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.load {
             def c = new CloudResource()
             c.attributes['name'] = "cloud1"
@@ -45,7 +42,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateClouds() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
          cache.updateClouds(
                 CloudResource.burst(new XmlParser().parseText(XmlData.CLOUDS),
                         'cloud', CloudResource.&create))
@@ -55,7 +52,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateDatacenters() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateDatacenters(
                 DatacenterResource.burst(new XmlParser().parseText(XmlData.DATACENTERS),
                         'datacenter', DatacenterResource.&create))
@@ -65,7 +62,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateDeployments() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateDeployments(
                 DeploymentResource.burst(new XmlParser().parseText(XmlData.DEPLOYMENTS),
                         'deployment', DatacenterResource.&create))
@@ -75,27 +72,36 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateImages() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateImages(
                 ImageResource.burst(new XmlParser().parseText(XmlData.IMAGES),
                         'image', ImageResource.&create))
         def resources = cache.getImages()
         Assert.assertEquals(2,resources.size())
     }
+    @Test
+    public void getImage() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateImages(
+                ImageResource.burst(new XmlParser().parseText(XmlData.IMAGES),
+                        'image', ImageResource.&create))
+        def image = cache.getImage("/api/clouds/926218062/images/ABC3344342180DEF")
+        Assert.assertEquals("resource_machine_3108560822", image.attributes['resource_uid'])
+    }
 
     @Test
     public void updateInputs() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateInputs(
-                InputsResource.burst(new XmlParser().parseText(XmlData.INPUTS),
-                        'input', InputsResource.&create))
+                InputResource.burst(new XmlParser().parseText(XmlData.INPUTS),
+                        'input', InputResource.&create))
         def resources = cache.getInputs()
-        Assert.assertEquals(1,resources.size())
+        Assert.assertEquals(4,resources.size())
     }
 
     @Test
     public void updateInstances() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateInstances(
                 InstanceResource.burst(new XmlParser().parseText(XmlData.INSTANCES),
                         'instance', InstanceResource.&create))
@@ -105,7 +111,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateInstanceTypes() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateInstanceTypes(
                 InstanceTypeResource.burst(new XmlParser().parseText(XmlData.INSTANCE_TYPES),
                         'instance_type', InstanceTypeResource.&create))
@@ -115,7 +121,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateServerArrays() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateServerArrays(
                 ServerArrayResource.burst(new XmlParser().parseText(XmlData.SERVER_ARRAYS),
                         'server_array', ServerArrayResource.&create))
@@ -125,7 +131,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateServerTemplates() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateServerTemplates(
                 ServerTemplateResource.burst(new XmlParser().parseText(XmlData.SERVER_TEMPLATES),
                         'server_template', ServerTemplateResource.&create))
@@ -135,7 +141,7 @@ public class RightscaleCacheTest {
 
     @Test
     public void updateServers() {
-        def RightscaleCache cache = new RightscaleCache()
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateServers(
                 ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
                         'server', ServerResource.&create))
@@ -144,8 +150,27 @@ public class RightscaleCacheTest {
     }
 
     @Test
-    public void cacheNeedsRefresh() {
-        def RightscaleCache cache = new RightscaleCache()
-        Assert.assertFalse(cache.needsRefresh())
+    public void updateSshKeys() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateSshKeys(
+                SshKeyResource.burst(new XmlParser().parseText(XmlData.SSH_KEYS),
+                        'ssh_key', ServerResource.&create))
+        def resources = cache.getSshKeys()
+        Assert.assertEquals(2,resources.size())
     }
+
+    /*
+    @Test
+    public void needsRefresh() {
+
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        Assert.assertEquals(true,cache.needsRefresh())
+
+        cache.updateServers(
+                ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
+                        'server', ServerResource.&create))
+        Assert.assertEquals(false,cache.needsRefresh())
+
+    }
+    */
 }

@@ -158,6 +158,14 @@ static def IMAGES = '''
         <value>text:</value>
         <name>input_definition_1373183366</name>
       </input>
+      <input>
+        <value>text:ssh/ssh* cron/cron*</value>
+        <name>rs_utils/process_match_list</name>
+      </input>
+      <input>
+        <value>ignore:$ignore</value>
+        <name>rs_utils/private_ssh_key</name>
+      </input>
     </inputs>
     '''
 static def INSTANCE_TYPES ='''
@@ -589,6 +597,45 @@ static def SERVER_ARRAYS = '''
         <state>enabled</state>
       </server_array>
     </server_arrays>
+    '''
+
+    static def SERVER_ARRAY_INSTANCES = '''
+    <instances>
+      <instance>
+        <private_ip_addresses>
+          <private_ip_address>10.170.250.134</private_ip_address>
+        </private_ip_addresses>
+        <resource_uid>i-ac4193f1</resource_uid>
+        <updated_at>2013/12/12 16:09:04 +0000</updated_at>
+        <state>operational</state>
+        <actions>
+          <action rel="terminate"/>
+          <action rel="reboot"/>
+          <action rel="run_executable"/>
+          <action rel="lock"/>
+          <action rel="unlock"/>
+        </actions>
+        <created_at>2013/12/12 16:05:45 +0000</created_at>
+        <name>RightScale Linux Server RL 5.7 #5</name>
+        <locked>false</locked>
+        <pricing_type>fixed</pricing_type>
+        <public_ip_addresses>
+          <public_ip_address>54.219.192.223</public_ip_address>
+        </public_ip_addresses>
+        <links>
+          <link rel="self" href="/api/clouds/3/instances/6S5099DHD3JAT"/>
+          <link rel="cloud" href="/api/clouds/3"/>
+          <link rel="deployment" href="/api/deployments/439858003"/>
+          <link rel="server_template" href="/api/server_templates/322789003"/>
+          <link rel="multi_cloud_image" href="/api/multi_cloud_images/358557003"/>
+          <link rel="parent" href="/api/server_arrays/1"/>
+          <link rel="volume_attachments" href="/api/clouds/3/instances/6S5099DHD3JAT/volume_attachments"/>
+          <link rel="inputs" href="/api/clouds/3/instances/6S5099DHD3JAT/inputs"/>
+          <link rel="monitoring_metrics" href="/api/clouds/3/instances/6S5099DHD3JAT/monitoring_metrics"/>
+          <link rel="alerts" href="/api/clouds/3/instances/6S5099DHD3JAT/alerts"/>
+        </links>
+      </instance>
+    </instances>
     '''
 static def SERVER_TEMPLATES = '''
     <server_templates>

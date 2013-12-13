@@ -122,6 +122,25 @@ public class RightscaleResourceTest {
     }
 
     @Test
+    public void input() {
+        def xml = new XmlParser().parseText(XmlData.INPUTS)
+
+        // burst the XML into a Map of CloudResource objects, keyed by their href
+        def Map map = InputResource.burst(xml, 'input', InputResource.&create)
+        Assert.assertEquals(4, map.size())
+
+        def r = InputResource.create(xml.children()[0])
+        Assert.assertTrue(r instanceof InputResource)
+        Assert.assertEquals("input_definition_3228327932", r.attributes['name'])
+        Assert.assertEquals("attrs="+r.attributes,"text:", r.attributes['value'])
+
+        def newNode = new NodeEntryImpl()
+        r.populate(newNode)
+        Assert.assertEquals("node attrs="+newNode.getAttributes(), "text:",
+                newNode.getAttribute("inputs.input_definition_3228327932"))
+    }
+
+    @Test
     public void instanceType() {
         def xml = new XmlParser().parseText(XmlData.INSTANCE_TYPES)
         def r = InstanceTypeResource.create(xml.children()[0])
