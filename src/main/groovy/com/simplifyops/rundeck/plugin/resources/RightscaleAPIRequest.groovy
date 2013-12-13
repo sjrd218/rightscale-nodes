@@ -29,11 +29,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
         this.account = account
         this.endpoint = endpoint
 
-        // API defaults
-        Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
-        Rest.baseUrl = endpoint;
-
-        restClient = new RestClient()
+        restClient = new RestClient(endpoint)
     }
 
     public void initialize() {
@@ -209,6 +205,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      * Helper class for making Rightscale API HTTP requests.
      */
     class RestClient {
+
+        RestClient(baseUrl) {
+            // API defaults
+            Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
+            Rest.baseUrl = baseUrl;
+        }
+
         /**
          * Login and create a session.
          */
