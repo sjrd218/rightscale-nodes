@@ -21,8 +21,6 @@ public class RightscaleNodes implements ResourceModelSource {
     private long refreshInterval;
     private String endpoint;
     private String username;
-    // Prefix each attribute name with this string.
-    private String prefix = "rs_"
 
     /**
      * Time nodes were last updated.
@@ -35,11 +33,40 @@ public class RightscaleNodes implements ResourceModelSource {
 
     private RightscaleAPI query;
 
+    private RightscaleCache cache;
+
+    private boolean initialized = false
+
     /**
-     * Default constructor.
+     * Default constructor used by RightscaleNodesFactory. Uses RightscaleAPIRequest for querying.
      * @param configuration Properties containing plugin configuration values.
      */
     public RightscaleNodes(Properties configuration) {
+        this(configuration,
+                new RightscaleAPIRequest(
+                        configuration.getProperty(RightscaleNodesFactory.EMAIL),
+                        configuration.getProperty(RightscaleNodesFactory.PASSWORD),
+                        configuration.getProperty(RightscaleNodesFactory.ACCOUNT),
+                        configuration.getProperty(RightscaleNodesFactory.ENDPOINT),
+                )
+        )
+    }
+
+    /**
+     * Base constructor.
+     * @param configuration Properties containing plugin configuration values.
+     * @param query Rightscale API client used to query resources.
+     */
+    public RightscaleNodes(Properties configuration, RightscaleAPI query) {
+        this(configuration, query, new RightscaleBasicCache())
+    }
+
+    /**
+     * Base constructor.
+     * @param configuration Properties containing plugin configuration values.
+     * @param api Rightscale API client used to query resources.
+     */
+    public RightscaleNodes(Properties configuration, RightscaleAPI api, RightscaleCache cache) {
 
         email = configuration.getProperty(RightscaleNodesFactory.EMAIL)
         password = configuration.getProperty(RightscaleNodesFactory.PASSWORD)
@@ -57,12 +84,11 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
         refreshInterval = refreshSecs * 1000;
-
-        query = new RightscaleAPIRequest(email, password, account, endpoint)
+        this.query = api
+        this.cache = cache
 
         println("DEBUG: New RightscaleNodes object created.")
     }
-
     /**
      * validate required params are set. Used by the factory.
      * @throws ConfigurationException
@@ -79,6 +105,54 @@ public class RightscaleNodes implements ResourceModelSource {
         }
     }
 
+    void initialize() {
+        this.query.initialize()
+        this.cache.initialize()
+        initialized = true
+    }
+
+    void loadCache() {
+
+        GParsPool.withPool {
+            GParsPool.executeAsyncAndWait(
+                    { cache.updateClouds(query.getClouds()) },
+                    { cache.updateDeployments(query.getDeployments()) },
+                    { cache.updateServers(query.getServers()) },
+                    { cache.updateServerTemplates(query.getServerTemplates()) },
+                    { cache.updateServerArrays(query.getServerArrays()) }
+            )
+        }
+
+        def clouds = cache.getClouds().values()
+        System.out.println("DEBUG: getting resources for ${clouds.size()} clouds.")
+        clouds.each { cloud ->
+            def cloud_id = cloud.getId()
+            GParsPool.withPool {
+                GParsPool.executeAsyncAndWait(
+                        { cache.updateDatacenters(query.getDatacenters(cloud_id)) },
+                        { cache.updateInstances(query.getInstances(cloud_id)) },
+                        { cache.updateInstanceTypes(query.getInstanceTypes(cloud_id)) },
+                        { cache.updateSubnets(query.getSubnets(cloud_id)) },
+                        { cache.updateSshKeys(query.getSshKeys(cloud_id)) }
+                )
+            }
+
+            /**
+             * Get each of the images individually to avoid making long query requests.
+             */
+            Map<String, RightscaleResource> images = [:]
+            cache.getInstances(cloud_id).values().each {
+                images.put(it.links['image'], query.getImage(it.links['image']))
+            }
+            cache.updateImages(images)
+        }
+
+        cache.getServerArrays().values().each {
+            def server_array_id = it.getId()
+            cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
+        }
+    }
+
     /**
      * Query RightScale for their instances and return them as Nodes.
      */
@@ -91,7 +165,7 @@ public class RightscaleNodes implements ResourceModelSource {
          */
         if (null == nodeset) {
             System.println("DEBUG: Getting nodes synchronously first time.")
-            updateNodeSet(query());
+            updateNodeSet(refresh());
 
         } else {
 
@@ -104,7 +178,7 @@ public class RightscaleNodes implements ResourceModelSource {
              * Query asynchronously.
              */
             System.println("DEBUG: Asynchronously getting nodes.")
-            Closure queryRequest = { updateNodeSet(query()) }
+            Closure queryRequest = { updateNodeSet(refresh()) }
             GParsPool.withPool() {
                 queryRequest.callAsync().get()
             }
@@ -120,7 +194,7 @@ public class RightscaleNodes implements ResourceModelSource {
     /**
      * Returns true if the last refresh time was longer ago than the refresh interval.
      */
-    private boolean needsRefresh() {
+     boolean needsRefresh() {
         return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
     }
 
@@ -138,13 +212,19 @@ public class RightscaleNodes implements ResourceModelSource {
      *
      * @return nodeset of Nodes
      */
-    INodeSet query() {
+    INodeSet refresh() {
+        initialize()
+        /**
+         * Load up the cache.
+         */
+        loadCache()
 
+        /**
+         * Generate the nodes.
+         */
         INodeSet nodeset = new NodeSetImpl();
-
-        nodeset.putNodes(queryServers(query))
-
-        //nodeset.putNodes(queryServerArrays(query))
+        nodeset.putNodes(getServerNodes(cache))
+        nodeset.putNodes(getServerArrayNodes(cache))
 
         /**
          * Return the nodeset
@@ -153,10 +233,10 @@ public class RightscaleNodes implements ResourceModelSource {
     }
     /**
      * Query all servers and get their Instances as Nodes
-     * @param query the RightscaleQuery
+     * @param api the RightscaleQuery
      * @return a node set of Nodes
      */
-    INodeSet queryServers(RightscaleAPI query) {
+    INodeSet getServerNodes(RightscaleAPI api) {
         /**
          * Create a node set from the result.
          */
@@ -164,33 +244,32 @@ public class RightscaleNodes implements ResourceModelSource {
         /**
          * List the Servers
          */
-        def servers = query.getServers().values()
+        def servers = api.getServers().values()
         System.out.println("DEBUG: Iterating over ${servers.size()} servers")
 
         servers.each { server ->
-            // Only process servers with a current instance.
+            // Only process servers with a current instance. TODO: Use api filter to limit results.
             if (server.links.containsKey('current_instance')) {
-                def NodeEntryImpl newNode = new NodeEntryImpl()
+                def NodeEntryImpl newNode = createNode(server.attributes['name'])
                 server.populate(newNode)
                 server.links.each { rel, href ->
-                    if (!rel.equals('self') && query.getResources(rel).containsKey(href)) {
-                        def RightscaleResource linkedResource = query.getResources(rel).get(href)
-                        linkedResource.populate(newNode)
+                    switch (rel) {
+                        case "deployment":
+                            def deployment = api.getDeployments().get(server.links['deployment'])
+                            deployment.populate(newNode)
+                            break
                     }
                 }
                 def cloud_href = server.links['cloud']
                 if (null == cloud_href) {
-                    throw new RuntimeException("cloud link not found for server: " + server.attributes['name'])
+                    throw new ResourceModelSourceException("cloud link not found for server: " + server.attributes['name'])
                 }
                 def cloud_id = cloud_href.split("/").last()
-                def InstanceResource instance = query.getInstances(cloud_id).get(server.links['current_instance'])
+                def InstanceResource instance = api.getInstances(cloud_id).get(server.links['current_instance'])
                 instance.populate(newNode)
-                instance.links.each { rel, href ->
-                    if (!rel.equals('self') && query.getResources(rel).containsKey(href)) {
-                        def RightscaleResource linkedResource = query.getResources(rel).get(href)
-                        linkedResource.populate(newNode)
-                    }
-                }
+
+                populateLinkedResources(api, instance, newNode)
+
                 // Add the node to the result.
                 nodeset.putNode(newNode)
             }
@@ -200,21 +279,40 @@ public class RightscaleNodes implements ResourceModelSource {
 
     /**
      * Make nodes from ServerArray instances.
-     * @param query the RightscaleQuery
+     * @param api the RightscaleQuery
      * @return a new INodeSet of nodes for each instance in the query result.
      */
-    INodeSet queryServerArrays(RightscaleAPI query) {
+    INodeSet getServerArrayNodes(RightscaleAPI api) {
         /**
-         * Create a node set from the result.
+         * Create a nodeset for query the result.
          */
         def nodeset = new NodeSetImpl();
         /**
          * List the ServerArrays
          */
-        def serverArrays = query.getServerArrays().values()
+        def serverArrays = api.getServerArrays().values()
         System.out.println("DEBUG: Iterating over ${serverArrays.size()} server arrays")
         serverArrays.each { serverArray ->
-            //serverArray.attributes['instances_count']
+            def server_array_id = serverArray.getId()
+            /**
+             * Get the Instances for this array
+             */
+            def instances = api.getServerArrayInstances(server_array_id)
+            instances.values().each { instance ->
+                /**
+                 * Populate the Node entry with the instance data.
+                 */
+                def NodeEntryImpl newNode = createNode(instance.attributes['name'])
+
+                instance.populate(newNode)
+                newNode.setNodename(instance.attributes['name'])
+
+                populateLinkedResources(api, instance, newNode)
+                serverArray.populate(newNode)
+
+                nodeset.putNode(newNode)
+                System.out.println("DEBUG: Added server array instance over ${instance.attributes['name']}")
+            }
         }
         return nodeset;
     }
@@ -227,7 +325,53 @@ public class RightscaleNodes implements ResourceModelSource {
     NodeEntryImpl createNode(final String name) {
         NodeEntryImpl newNode = new NodeEntryImpl(name);
         newNode.setUsername(username) // - Config property.
-        newNode.setOsFamily("unix");  // - Hard coded.
+        newNode.setOsName("Linux");   // - Hard coded default.
+        newNode.setOsFamily("unix");  // - "
+        newNode.setOsArch("x86_64");  // - "
         return newNode
     }
+
+
+    void populateLinkedResources(RightscaleAPI api, InstanceResource instance, NodeEntryImpl newNode) {
+        def cloud_id = instance.links['cloud'].split("/").last()
+
+        instance.links.each { rel, href ->
+            switch (rel) {
+                case "self":
+                    def tags = api.getTags(instance.links['self'])
+                    tags.values().each {
+                        it.populate(newNode)
+                    }
+                    break
+                case "cloud":
+                    def cloud = api.getClouds().get(instance.links['cloud'])
+                    cloud.populate(newNode)
+                    break
+                case "image":
+                    def image = api.getImages(cloud_id).get(instance.links['image'])
+                    image.populate(newNode)
+                    break
+                case "inputs":
+                    def instance_id = instance.links['self'].split("/").last()
+                    def inputs = api.getInputs(cloud_id, instance_id)
+                    inputs.values().each {
+                        it.populate(newNode)
+                    }
+                    break;
+                case "instance_type":
+                    def instance_type = api.getInstanceTypes(cloud_id).get(instance.links['instance_type'])
+                    instance_type.populate(newNode)
+                    break
+                case "server_template":
+                    def server_template = api.getServerTemplates().get(instance.links['server_template'])
+                    server_template.populate(newNode)
+                    break
+                case "ssh_key":
+                    def ssh_key = api.getSshKeys(cloud_id).get(instance.links['ssh_key'])
+                    ssh_key.populate(newNode)
+                    break
+            }
+        }
+    }
+
 }
