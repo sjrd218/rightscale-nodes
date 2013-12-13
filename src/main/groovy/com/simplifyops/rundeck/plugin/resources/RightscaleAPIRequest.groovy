@@ -1,6 +1,7 @@
 package com.simplifyops.rundeck.plugin.resources
 
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
+import com.sun.jersey.api.client.Client
 import com.sun.jersey.api.client.ClientHandlerException
 import com.sun.jersey.api.client.ClientRequest
 import com.sun.jersey.api.client.ClientResponse
@@ -206,20 +207,40 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     class RestClient {
 
+        private ArrayList<Object> cookies;
+        private String baseUrl
+
         RestClient(baseUrl) {
             // API defaults
             Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
-            Rest.baseUrl = baseUrl;
+            this.baseUrl = baseUrl
+            Rest.baseUrl = this.baseUrl;
+            addSendCookieFilter(Rest.client)
         }
 
         /**
+         * Adds a filter to the jersey client that will send all of the stored cookies in each request.
+         * @param client
+         */
+        private void addSendCookieFilter(Client client) {
+            client.addFilter(new ClientFilter() {
+                @Override
+                public ClientResponse handle(ClientRequest request) throws ClientHandlerException {
+                    if (cookies != null) {
+                        request.getHeaders().put("Cookie", cookies);
+                    }
+                    return getNext().handle(request);
+                }
+            });
+        }
+/**
          * Login and create a session.
          */
         private void authenticate() {
-            // add a filter to set cookies received from the server and to check if login has been triggered
-            Rest.client.addFilter(new ClientFilter() {
-                private ArrayList<Object> cookies;
-
+            //use a local Jersey client
+            def client = Client.create()
+            //add a filter to store and send all cookies received from the server
+            client.addFilter(new ClientFilter() {
                 @Override
                 public ClientResponse handle(ClientRequest request) throws ClientHandlerException {
                     if (cookies != null) {
@@ -231,14 +252,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
                         if (cookies == null) {
                             cookies = new ArrayList<Object>();
                         }
-                        // A simple addAll just for illustration (should probably check for duplicates and expired cookies)
                         cookies.addAll(response.getCookies());
                     }
                     return response;
                 }
             });
 
-            WebResource sessionRequest = Rest.client.resource("${endpoint}/api/session");
+            WebResource sessionRequest = client.resource("${endpoint}/api/session");
             Form form = new Form();
             form.putSingle("email", email);
             form.putSingle("password", password);
@@ -249,6 +269,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
              * Check the response for http status (eg, 20x)
              */
             if (response.status != 204) {
+                cookies == null
                 throw new ResourceModelSourceException("RightScale login error. " + response)
             }
         }
