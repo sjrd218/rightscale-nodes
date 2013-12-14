@@ -11,8 +11,8 @@ class RightscaleBasicCache implements RightscaleCache {
     private Map<String, CachedResourceCollection> resources
 
     private int refreshSecs = 30;
-    final private int refreshInterval;
-    private int lastRefresh;
+    private long refreshInterval;
+    private long lastRefresh = 0;
 
 
     public RightscaleBasicCache(int refreshSecs) {
@@ -39,7 +39,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
 
     /**
-     * Defaults to 30s refresh interval.
+     * Defaults to 30 sec refresh interval.
      */
     public  RightscaleBasicCache() {
         this(30)
@@ -51,6 +51,11 @@ class RightscaleBasicCache implements RightscaleCache {
         // nothing to do
     }
 
+    @Override
+    public void setRefreshInterval(int millisecs) {
+        refreshInterval = millisecs
+    }
+
     /**
      * Load the cache
      */
@@ -60,7 +65,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     public boolean needsRefresh() {
-        return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
+        return refreshInterval <= 0 || ((System.currentTimeMillis() - lastRefresh) > refreshInterval);
     }
 
     public void cleanUp() {
@@ -77,7 +82,7 @@ class RightscaleBasicCache implements RightscaleCache {
      */
     private void storeResources(String key, Map<String, RightscaleResource> resources) {
         this.resources[key].putAll(resources)
-        int now = System.currentTimeMillis()
+        def now = System.currentTimeMillis()
         this.resources[key].ctime = now
         lastRefresh = now
     }
@@ -254,7 +259,6 @@ class RightscaleBasicCache implements RightscaleCache {
     class CachedResourceCollection {
         private long ctime
         private long atime
-        //private ConcurrentHashMap<String, RightscaleResource> collection;
         private Map<String, RightscaleResource> collection;
 
         CachedResourceCollection() {

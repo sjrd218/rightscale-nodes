@@ -23,10 +23,9 @@ public class RightscaleCacheTest {
         Assert.assertTrue(cache.getServerTemplates().size()==0)
         Assert.assertTrue(cache.getServers().size()==0)
         Assert.assertTrue(cache.getSshKeys().size()==0)
+        Assert.assertTrue(cache.getSubnets().size()==0)
         Assert.assertTrue(cache.getTags().size()==0)
     }
-
-
 
     @Test
     public void load() {
@@ -38,6 +37,21 @@ public class RightscaleCacheTest {
         }
         Assert.assertEquals(1,cache.getClouds().size())
         Assert.assertEquals("cloud1",cache.getClouds().get("/api/clouds/1")['attributes']['name'])
+    }
+
+    @Test
+    public void needsRefresh() {
+
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        Assert.assertEquals(true,cache.needsRefresh())
+
+        cache.updateServers(
+                ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
+                        'server', ServerResource.&create))
+        Assert.assertEquals(false,cache.needsRefresh())
+        cache.setRefreshInterval(0)
+        Assert.assertEquals(true,cache.needsRefresh())
+
     }
 
     @Test
@@ -159,18 +173,4 @@ public class RightscaleCacheTest {
         Assert.assertEquals(2,resources.size())
     }
 
-    /*
-    @Test
-    public void needsRefresh() {
-
-        def RightscaleBasicCache cache = new RightscaleBasicCache()
-        Assert.assertEquals(true,cache.needsRefresh())
-
-        cache.updateServers(
-                ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
-                        'server', ServerResource.&create))
-        Assert.assertEquals(false,cache.needsRefresh())
-
-    }
-    */
 }
