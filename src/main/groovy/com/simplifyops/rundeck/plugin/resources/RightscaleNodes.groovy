@@ -122,7 +122,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     void loadCache() {
         def long starttime = System.currentTimeMillis()
-        /*GParsPool.withPool {
+        GParsPool.withPool {
             GParsPool.executeAsyncAndWait(
                     { cache.updateClouds(query.getClouds()) },
                     { cache.updateDeployments(query.getDeployments()) },
@@ -130,21 +130,13 @@ public class RightscaleNodes implements ResourceModelSource {
                     { cache.updateServerTemplates(query.getServerTemplates()) },
                     { cache.updateServerArrays(query.getServerArrays()) }
             )
-        }*/
-
-
-        cache.updateClouds(query.getClouds())
-        cache.updateDeployments(query.getDeployments())
-        cache.updateServers(query.getServers())
-        cache.updateServerTemplates(query.getServerTemplates())
-        cache.updateServerArrays(query.getServerArrays())
-
+        }
 
 
         def clouds = cache.getClouds().values()
         clouds.each { cloud ->
             def cloud_id = cloud.getId()
-            /*GParsPool.withPool {
+            GParsPool.withPool {
                 GParsPool.executeAsyncAndWait(
                         { cache.updateDatacenters(query.getDatacenters(cloud_id)) },
                         { cache.updateInstances(query.getInstances(cloud_id)) },
@@ -152,14 +144,7 @@ public class RightscaleNodes implements ResourceModelSource {
                         { cache.updateSubnets(query.getSubnets(cloud_id)) },
                         { cache.updateSshKeys(query.getSshKeys(cloud_id)) }
                 )
-            }*/
-
-
-            cache.updateDatacenters(query.getDatacenters(cloud_id))
-            cache.updateInstances(query.getInstances(cloud_id))
-            cache.updateInstanceTypes(query.getInstanceTypes(cloud_id))
-            cache.updateSubnets(query.getSubnets(cloud_id))
-            cache.updateSshKeys(query.getSshKeys(cloud_id))
+            }
 
             /**
              * Get each of the Instances images individually.

@@ -46,7 +46,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getServers() {
-        def Node xml = restClient.get("/api/servers.xml", [view: "instance_detail"])
+        def Node xml = restClient.get("/api/servers", [view: "instance_detail"])
         System.out.println("DEBUG: number of servers in response to GET /api/servers: " + xml.server.size())
 
         def servers = ServerResource.burst(xml, 'server', ServerResource.&create)
@@ -72,7 +72,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getDeployments() {
-        def Node xml = restClient.get("/api/deployments.xml", [:])
+        def Node xml = restClient.get("/api/deployments", [:])
         return DeploymentResource.burst(xml, 'deployment', DeploymentResource.&create)
     }
 
@@ -82,7 +82,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getClouds() {
-        def Node xml = restClient.get("/api/clouds.xml", [:])
+        def Node xml = restClient.get("/api/clouds", [:])
         return CloudResource.burst(xml, 'cloud', CloudResource.&create)
     }
 
@@ -92,7 +92,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getServerTemplates() {
-        def Node xml = restClient.get('/api/server_templates.xml', [:])
+        def Node xml = restClient.get('/api/server_templates', [:])
         return ServerTemplateResource.burst(xml, 'server_template', ServerTemplateResource.&create)
     }
 
@@ -103,7 +103,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getDatacenters(String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters.xml", [:])
+        def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters", [:])
         return DatacenterResource.burst(xml, 'datacenter', DatacenterResource.&create)
     }
 
@@ -172,7 +172,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getInstanceTypes(String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types.xml", [:])
+        def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types", [:])
         return InstanceTypeResource.burst(xml, 'instance_type', InstanceTypeResource.&create)
     }
 
@@ -198,7 +198,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getTags(final String href) {
-        def request = '/api/tags/by_resource.xml' as Rest;
+        def request = '/api/tags/by_resource' as Rest;
         request.addFilter(new LoggingFilter(System.out)); // debug output
         def ClientResponse response = request.post({}, [:], ["resource_hrefs[]": href]);
         if (response.status != 200) {
@@ -294,7 +294,9 @@ class RightscaleAPIRequest implements RightscaleAPI {
          */
         Node get(String href, Map params) {
             if (null == href) throw new IllegalAccessException("href cannot be null")
-
+            if (!href.endsWith('.xml')) {
+                href= href+'.xml'
+            }
             System.out.println("DEBUG: RightscaleAPIRequest.RestClient: Getting resource by href: ${href}")
             /**
              * Request the servers data as XML
