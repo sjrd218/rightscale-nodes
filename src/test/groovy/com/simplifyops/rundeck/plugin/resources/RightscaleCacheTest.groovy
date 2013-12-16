@@ -173,4 +173,29 @@ public class RightscaleCacheTest {
         Assert.assertEquals(2,resources.size())
     }
 
+
+    @Test
+    public void cachedResourceCollection() {
+        def coll = new RightscaleBasicCache.CachedResourceCollection()
+        Assert.assertEquals(true,coll.needsRefresh())
+        Assert.assertEquals(0,coll.size())
+
+        def r = new RightscaleResource()
+        def key = "/stuff/1"
+        def Map<String, RightscaleResource> input = [:]
+        input.put(key, r)
+        coll.putAll(input)
+        Assert.assertEquals(1, coll.size())
+        Assert.assertTrue(coll.exists(key))
+        Assert.assertEquals(r, coll.get(key))
+
+        def Map map = coll.toMap()
+        Assert.assertNotNull("resource not in map: ${key}, map:"+map, map.get(key))
+        Assert.assertEquals(r, map.get(key))
+
+        coll.remove(key)
+        Assert.assertFalse(coll.exists(key))
+        Assert.assertEquals(0,coll.size())
+
+    }
 }

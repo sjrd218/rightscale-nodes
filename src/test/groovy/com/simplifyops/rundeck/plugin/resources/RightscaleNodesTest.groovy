@@ -61,7 +61,6 @@ public class RightscaleNodesTest {
     public void cacheRefresh() {
         def RightscaleBasicCache cache = new RightscaleBasicCache()
         initializeCache(cache)
-        cache.cleanUp()
     }
 
     @Test
@@ -77,6 +76,8 @@ public class RightscaleNodesTest {
         configuration.setProperty(RightscaleNodesFactory.ACCOUNT, "12345")
         configuration.setProperty(RightscaleNodesFactory.ENDPOINT, "http://my.rightscale.com")
         configuration.setProperty(RightscaleNodesFactory.USERNAME, "admin")
+        configuration.setProperty(RightscaleNodesFactory.REFRESH_INTERVAL, "30")
+        configuration.setProperty(RightscaleNodesFactory.INPUT_PATT, ".*")
         return configuration
     }
 
@@ -142,6 +143,9 @@ public class RightscaleNodesTest {
         // image
         Assert.assertEquals("resource_machine_2329921984",node1Attrs['image.resource_uid'])
         Assert.assertEquals("machine",node1Attrs['image.image_type'])
+        // input
+        Assert.assertEquals("attrs"+node1Attrs,"text:",node1Attrs['inputs.input_definition_3228327932'])
+
         // ssh_key
         Assert.assertEquals("attrs"+node1Attrs,"resource_913473243",node1Attrs['ssh_key.resource_uid'])
         // tags
@@ -223,11 +227,34 @@ public class RightscaleNodesTest {
          */
         def nodes = new RightscaleNodes(createConfigProperties(), query, cache)
         /**
-         * Invoke the loadCache method.
+         * Invoke the getNodes method.
          */
         def nodeset = nodes.getNodes()
 
         Assert.assertEquals(2,nodeset.getNodes().size())
         Assert.assertEquals(false,nodes.needsRefresh())
+    }
+
+    @Test
+    public void filteredInputs() {
+
+        def  query = new RightscaleBasicCache()
+        initializeCache(query)
+
+        Properties configuration = createConfigProperties()
+        configuration.setProperty(RightscaleNodesFactory.INPUT_PATT, "rs_utils.*")
+        def nodes = new RightscaleNodes(configuration, query, new RightscaleBasicCache())
+
+        nodes.loadCache()
+        def nodeset = nodes.getNodes()
+        nodeset.getNodes().each {
+            it.getAttributes().keySet().each {
+                if (it.startsWith("inputs.")) {
+                    Assert.assertTrue(it.matches("inputs.rs_utils.*"))
+                }
+            }
+
+
+        }
     }
 }

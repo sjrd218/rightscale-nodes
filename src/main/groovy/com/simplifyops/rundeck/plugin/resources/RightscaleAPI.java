@@ -15,6 +15,7 @@ public interface RightscaleAPI {
     Map<String, RightscaleResource> getImages(String cloud_id);
     RightscaleResource getImage(String href);
     Map<String, RightscaleResource> getInputs(String cloud_id, String instance_id);
+    Map<String, RightscaleResource> getInputs(String href);
     Map<String, RightscaleResource> getInstances(String cloud_id);
     Map<String, RightscaleResource> getInstanceTypes(String cloud_id);
     Map<String, RightscaleResource> getServerArrays();

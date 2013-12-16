@@ -37,11 +37,10 @@ class RightscaleBasicCache implements RightscaleCache {
 
     }
 
-
     /**
      * Defaults to 30 sec refresh interval.
      */
-    public  RightscaleBasicCache() {
+    public RightscaleBasicCache() {
         this(30)
     }
 
@@ -66,12 +65,6 @@ class RightscaleBasicCache implements RightscaleCache {
     @Override
     public boolean needsRefresh() {
         return refreshInterval <= 0 || ((System.currentTimeMillis() - lastRefresh) > refreshInterval);
-    }
-
-    public void cleanUp() {
-        resources.values().each {
-            it.cleanUp()
-        }
     }
 
     /**
@@ -104,7 +97,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateClouds(Map<String, RightscaleResource> clouds) {
-        storeResources('cloud',clouds)
+        storeResources('cloud', clouds)
     }
 
     @Override
@@ -114,7 +107,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateDatacenters(Map<String, RightscaleResource> datacenters) {
-        storeResources('datacenter',datacenters)
+        storeResources('datacenter', datacenters)
     }
 
     Map<String, RightscaleResource> getDatacenters() {
@@ -128,13 +121,14 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateDeployments(Map<String, RightscaleResource> deployments) {
-        storeResources('deployment',deployments)
+        storeResources('deployment', deployments)
     }
 
     @Override
     Map<String, RightscaleResource> getImages(String cloud_id) {
         return getResources('image')
     }
+
     @Override
     RightscaleResource getImage(String href) {
         return getResources('image').get(href)
@@ -146,20 +140,26 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateImages(Map<String, RightscaleResource> images) {
-        storeResources('image',images)
+        storeResources('image', images)
     }
 
     @Override
     Map<String, RightscaleResource> getInputs(String cloud_id, String instance_id) {
         return getResources('inputs')
     }
+
     Map<String, RightscaleResource> getInputs() {
         return getResources('inputs')
     }
 
     @Override
+    Map<String, RightscaleResource> getInputs(String href) {
+        return getResources('inputs')
+    }
+
+    @Override
     void updateInputs(Map<String, RightscaleResource> inputs) {
-        storeResources('inputs',inputs)
+        storeResources('inputs', inputs)
     }
 
     @Override
@@ -173,7 +173,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateInstances(Map<String, RightscaleResource> instances) {
-        storeResources('instance',instances)
+        storeResources('instance', instances)
     }
 
     @Override
@@ -183,7 +183,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateInstanceTypes(Map<String, RightscaleResource> instanceTypes) {
-        storeResources('instance_type',instanceTypes)
+        storeResources('instance_type', instanceTypes)
     }
 
     @Override
@@ -193,7 +193,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateServerArrays(Map<String, RightscaleResource> serverArrays) {
-        storeResources('server_array',serverArrays)
+        storeResources('server_array', serverArrays)
     }
 
     @Override
@@ -203,7 +203,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateServerArrayInstances(Map<String, RightscaleResource> instances) {
-        storeResources('server_array_instance',instances)
+        storeResources('server_array_instance', instances)
     }
 
     @Override
@@ -213,7 +213,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateServers(Map<String, RightscaleResource> servers) {
-        storeResources('server',servers)
+        storeResources('server', servers)
     }
 
     @Override
@@ -223,7 +223,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateServerTemplates(Map<String, RightscaleResource> serverTemplates) {
-        storeResources('server_template',serverTemplates)
+        storeResources('server_template', serverTemplates)
     }
 
     @Override
@@ -233,7 +233,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateSubnets(Map<String, RightscaleResource> subnets) {
-        storeResources('subnet',subnets)
+        storeResources('subnet', subnets)
     }
 
     @Override
@@ -243,16 +243,17 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     void updateSshKeys(Map<String, RightscaleResource> ssh_keys) {
-        storeResources('ssh_key',ssh_keys)
+        storeResources('ssh_key', ssh_keys)
     }
 
     @Override
     Map<String, RightscaleResource> getTags(String href) {
         return getResources('tag')
     }
+
     @Override
     void updateTags(Map<String, RightscaleResource> tags) {
-        storeResources('tag',tags)
+        storeResources('tag', tags)
     }
 
 
@@ -260,9 +261,15 @@ class RightscaleBasicCache implements RightscaleCache {
         private long ctime
         private long atime
         private Map<String, RightscaleResource> collection;
+        private long refreshInterval;
 
         CachedResourceCollection() {
+            setInterval(30 * 1000)
             collection = [:]
+        }
+
+        void setInterval(int millis) {
+            refreshInterval=millis
         }
 
         public Map<String, RightscaleResource> toMap() {
@@ -271,31 +278,32 @@ class RightscaleBasicCache implements RightscaleCache {
         }
 
         public RightscaleResource get(String key) {
-            collection.atime = System.currentTimeMillis()
+            atime = System.currentTimeMillis()
             return collection.get(key)
         }
 
-        public boolean needsRefresh() {
-            if (collection.size()==0) return true
-            return true
+        boolean exists(String key) {
+            return collection.containsKey(key)
         }
 
-        public void cleanUp() {
-            def Iterator iter = collection.keySet().iterator()
-            while(iter.hasNext()) {
-                String href = iter.next()
-                //evict(href)
-            }
+
+        public boolean needsRefresh() {
+            return refreshInterval <= 0 || ((System.currentTimeMillis() - ctime) > refreshInterval);
         }
+
 
         void putAll(Map<String, RightscaleResource> map) {
             collection.putAll(map)
             ctime = System.currentTimeMillis()
         }
 
-        private void evict(String href) {
-            collection.remove(href)
+        void remove(String key) {
+            collection.remove(key)
             ctime = System.currentTimeMillis()
+        }
+
+        int size() {
+            return collection.size()
         }
     }
 

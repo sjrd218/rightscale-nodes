@@ -23,6 +23,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
     public static final String ACCOUNT = "account";
     public static final String REFRESH_INTERVAL = "refreshInterval";
     public static final String USERNAME = "username";
+    public static final String INPUT_PATT = "inputs";
 
     /**
      * Default constructor.
@@ -44,13 +45,15 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
      */
     static Description DESC = DescriptionBuilder.builder()
             .name(PROVIDER_NAME)
-            .title("RightScale Servers")
-            .description("Generates nodes from a list of servers in your RightScale account.")
+            .title("RightScale Instances")
+            .description("Generates nodes from instances in your RightScale account.")
             .property(PropertyUtil.string(EMAIL, "Email", "Email address for RightScale User", true, null))
             .property(PropertyUtil.string(PASSWORD, "Password", "RightScale Password", true, null))
             .property(PropertyUtil.string(ACCOUNT, "Account", "RightScale Account", true, null))
             .property(PropertyUtil.integer(REFRESH_INTERVAL, "Refresh Interval",
                     "Minimum time in seconds between API requests to RightScale (default is 60)", false, "60"))
+            .property(PropertyUtil.string(INPUT_PATT, "Input pattern",
+            "Regular expression used to match resource inputs (default is .*)", false, ".*"))
             .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5", false, "https://us-3.rightscale.com"))
             .property(PropertyUtil.string(USERNAME, "Username", "Username for remote command execution", true, null))
             .build();

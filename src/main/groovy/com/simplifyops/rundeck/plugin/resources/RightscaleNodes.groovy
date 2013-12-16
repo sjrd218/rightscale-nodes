@@ -7,6 +7,8 @@ import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException
 import com.dtolabs.rundeck.core.resources.ResourceModelSource
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 import groovyx.gpars.GParsPool
+import com.codahale.metrics.MetricRegistry
+
 import org.apache.log4j.Logger
 
 public class RightscaleNodes implements ResourceModelSource {
@@ -15,12 +17,9 @@ public class RightscaleNodes implements ResourceModelSource {
     /**
      * Configuration parameters.
      */
-    private String email;
-    private String password;
-    private String account;
-    private long refreshInterval;
-    private String endpoint;
-    private String username;
+    private Properties configuration;
+
+    private int refreshInterval;
 
     /**
      * Time nodes were last updated.
@@ -38,6 +37,8 @@ public class RightscaleNodes implements ResourceModelSource {
     private boolean initialized = false
 
     private Thread refreshThread
+
+    private MetricRegistry metrics = new MetricRegistry();
 
     /**
      * Default constructor used by RightscaleNodesFactory. Uses RightscaleAPIRequest for querying.
@@ -70,47 +71,48 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     public RightscaleNodes(Properties configuration, RightscaleAPI api, RightscaleCache cache) {
 
-        email = configuration.getProperty(RightscaleNodesFactory.EMAIL)
-        password = configuration.getProperty(RightscaleNodesFactory.PASSWORD)
-        account = configuration.getProperty(RightscaleNodesFactory.ACCOUNT)
-        endpoint = configuration.getProperty(RightscaleNodesFactory.ENDPOINT)
-        username = configuration.getProperty(RightscaleNodesFactory.USERNAME)
-
-        int refreshSecs = 30;
-        final String refreshStr = configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL)
-        if (null != refreshStr && !"".equals(refreshStr)) {
-            try {
-                refreshSecs = Integer.parseInt(refreshStr);
-            } catch (NumberFormatException e) {
-                logger.warn(RightscaleNodesFactory.REFRESH_INTERVAL + " value is not valid: " + refreshStr);
-            }
-        }
-        refreshInterval = refreshSecs * 1000;
+        this.configuration = configuration
         this.query = api
         this.cache = cache
 
         println("DEBUG: New RightscaleNodes object created.")
     }
     /**
-     * validate required params are set. Used by the factory.
+     * validate required configuration params are valid. Used by the factory.
      * @throws ConfigurationException
      */
     void validate() throws ConfigurationException {
-        if (null == email) {
+        if (null == configuration.getProperty(RightscaleNodesFactory.EMAIL)) {
             throw new ConfigurationException("email is required");
         }
-        if (null == password) {
+        if (null == configuration.getProperty(RightscaleNodesFactory.PASSWORD)) {
             throw new ConfigurationException("password is required");
         }
-        if (null == account) {
+        if (null == configuration.getProperty(RightscaleNodesFactory.ACCOUNT)) {
             throw new ConfigurationException("account is required");
+        }
+        if (null == configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL)) {
+            throw new ConfigurationException("interval is required");
+        }
+        final String interval = configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL)
+        try {
+            Integer.parseInt(interval);
+        } catch (NumberFormatException e) {
+            throw new ConfigurationException(RightscaleNodesFactory.REFRESH_INTERVAL + " value is not valid: " + interval);
+        }
+        if (null == configuration.getProperty(RightscaleNodesFactory.INPUT_PATT)) {
+            throw new ConfigurationException("inputs is required");
         }
     }
 
     void initialize() {
-        if(!initialized){
-            this.query.initialize()
+        if (!initialized) {
+            int refreshSecs = Integer.parseInt(configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL));
+            this.cache.setRefreshInterval(refreshSecs * 1000)
             this.cache.initialize()
+
+            this.query.initialize()
+
             initialized = true
         }
     }
@@ -120,7 +122,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     void loadCache() {
         def long starttime = System.currentTimeMillis()
-        GParsPool.withPool {
+        /*GParsPool.withPool {
             GParsPool.executeAsyncAndWait(
                     { cache.updateClouds(query.getClouds()) },
                     { cache.updateDeployments(query.getDeployments()) },
@@ -128,12 +130,21 @@ public class RightscaleNodes implements ResourceModelSource {
                     { cache.updateServerTemplates(query.getServerTemplates()) },
                     { cache.updateServerArrays(query.getServerArrays()) }
             )
-        }
+        }*/
+
+
+        cache.updateClouds(query.getClouds())
+        cache.updateDeployments(query.getDeployments())
+        cache.updateServers(query.getServers())
+        cache.updateServerTemplates(query.getServerTemplates())
+        cache.updateServerArrays(query.getServerArrays())
+
+
 
         def clouds = cache.getClouds().values()
         clouds.each { cloud ->
             def cloud_id = cloud.getId()
-            GParsPool.withPool {
+            /*GParsPool.withPool {
                 GParsPool.executeAsyncAndWait(
                         { cache.updateDatacenters(query.getDatacenters(cloud_id)) },
                         { cache.updateInstances(query.getInstances(cloud_id)) },
@@ -141,16 +152,33 @@ public class RightscaleNodes implements ResourceModelSource {
                         { cache.updateSubnets(query.getSubnets(cloud_id)) },
                         { cache.updateSshKeys(query.getSshKeys(cloud_id)) }
                 )
-            }
+            }*/
+
+
+            cache.updateDatacenters(query.getDatacenters(cloud_id))
+            cache.updateInstances(query.getInstances(cloud_id))
+            cache.updateInstanceTypes(query.getInstanceTypes(cloud_id))
+            cache.updateSubnets(query.getSubnets(cloud_id))
+            cache.updateSshKeys(query.getSshKeys(cloud_id))
 
             /**
-             * Get each of the images individually to avoid making long query requests.
+             * Get each of the Instances images individually.
+             * /api/clouds/:cloud_id/images can take a long time.
              */
             Map<String, RightscaleResource> images = [:]
-            cache.getInstances(cloud_id).values().each {
-                images.put(it.links['image'], query.getImage(it.links['image']))
+
+            cache.getInstances(cloud_id).values().each { instance ->
+                System.out.println("DEBUG: instance.self: " + instance.links['self'])
+                if (!cache.getImage(instance.links['image'])) {
+                    images.put(instance.links['image'], query.getImage(instance.links['image']))
+                }
+
+                cache.updateInputs(query.getInputs(instance.links['inputs']))
+
             }
+
             cache.updateImages(images)
+
         }
 
         cache.getServerArrays().values().each {
@@ -166,6 +194,8 @@ public class RightscaleNodes implements ResourceModelSource {
     @Override
     public synchronized INodeSet getNodes() throws ResourceModelSourceException {
         def long starttime = System.currentTimeMillis()
+        def context = metrics.timer(MetricRegistry.name('rightscale.nodes', 'getNodes')).time()
+
         /**
          * Haven't got any nodes yet so get them synchronously.
          */
@@ -190,6 +220,7 @@ public class RightscaleNodes implements ResourceModelSource {
         }
 
         System.println("DEBUG: getNodes() time: " + (System.currentTimeMillis() - starttime))
+        context.stop()
         /**
          * Return the nodeset
          */
@@ -199,19 +230,23 @@ public class RightscaleNodes implements ResourceModelSource {
     /**
      * Returns true if the last refresh time was longer ago than the refresh interval.
      */
-     boolean needsRefresh() {
-        return refreshInterval < 0 || (System.currentTimeMillis() - lastRefresh > refreshInterval);
+    boolean needsRefresh() {
+        return cache.needsRefresh()
     }
 
     private boolean asyncRefreshRunning() {
-         return null != refreshThread && refreshThread.isAlive()
+        return null != refreshThread && refreshThread.isAlive()
     }
+
     /**
      * Query the RightScale API for instances and map them to Nodes.
      *
      * @return nodeset of Nodes
      */
     INodeSet refresh() {
+        def long starttime = System.currentTimeMillis()
+        def context = metrics.timer(MetricRegistry.name('rightscale.nodes', 'refresh')).time()
+
         initialize()
         /**
          * Load up the cache.
@@ -225,7 +260,8 @@ public class RightscaleNodes implements ResourceModelSource {
         nodes.putNodes(getServerNodes(cache))
         nodes.putNodes(getServerArrayNodes(cache))
 
-        lastRefresh = System.currentTimeMillis();
+        System.println("DEBUG: refresh() time: " + (System.currentTimeMillis() - starttime))
+        context.stop()
 
         return nodes;
     }
@@ -265,6 +301,11 @@ public class RightscaleNodes implements ResourceModelSource {
                 }
                 def cloud_id = cloud_href.split("/").last()
                 def InstanceResource instance = api.getInstances(cloud_id).get(server.links['current_instance'])
+                if (null == instance) {
+                    throw new ResourceModelSourceException(
+                            "Failed getting instance for server[" + server.links['self'] + "]. current_instance"
+                                    + server.links['current_instance'])
+                }
                 instance.populate(newNode)
 
                 populateLinkedResources(api, instance, newNode)
@@ -323,7 +364,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     NodeEntryImpl createNode(final String name) {
         NodeEntryImpl newNode = new NodeEntryImpl(name);
-        newNode.setUsername(username) // - Config property.
+        newNode.setUsername(configuration.getProperty(RightscaleNodesFactory.USERNAME))
         newNode.setOsName("Linux");   // - Hard coded default.
         newNode.setOsFamily("unix");  // - "
         newNode.setOsArch("x86_64");  // - "
@@ -351,11 +392,13 @@ public class RightscaleNodes implements ResourceModelSource {
                     image.populate(newNode)
                     break
                 case "inputs":
-                    def instance_id = instance.links['self'].split("/").last()
-                    def inputs = api.getInputs(cloud_id, instance_id)
+                    def inputs = api.getInputs(instance.links['inputs'])
                     inputs.values().each {
-                        it.populate(newNode)
+                        if (it.attributes['name'].matches(configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))) {
+                            it.populate(newNode)
+                        }
                     }
+
                     break;
                 case "instance_type":
                     def instance_type = api.getInstanceTypes(cloud_id).get(instance.links['instance_type'])

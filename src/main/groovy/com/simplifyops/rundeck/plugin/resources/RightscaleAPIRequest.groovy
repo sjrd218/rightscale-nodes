@@ -1,5 +1,7 @@
 package com.simplifyops.rundeck.plugin.resources
 
+import com.codahale.metrics.Counter
+import com.codahale.metrics.MetricRegistry
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 import com.sun.jersey.api.client.Client
 import com.sun.jersey.api.client.ClientHandlerException
@@ -157,6 +159,12 @@ class RightscaleAPIRequest implements RightscaleAPI {
         return InputResource.burst(xml, 'input', InputResource.&create)
     }
 
+    @Override
+    public Map<String, RightscaleResource> getInputs(final String href) {
+        def Node xml = restClient.get(href, [:])
+        return InputResource.burst(xml, 'input', InputResource.&create)
+    }
+
     /**
      * Query the Rightscale API for all InstanceType resources for the specified cloud.
      * @param cloud_id
@@ -210,6 +218,9 @@ class RightscaleAPIRequest implements RightscaleAPI {
         private ArrayList<Object> cookies;
         private String baseUrl
 
+        private MetricRegistry metrics = new MetricRegistry();
+        private final Counter requests = metrics.counter(MetricRegistry.name(RestClient.class, "http.requests"));
+
         RestClient(baseUrl) {
             // API defaults
             Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
@@ -233,7 +244,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
                 }
             });
         }
-/**
+
+        /**
          * Login and create a session.
          */
         private void authenticate() {
@@ -294,6 +306,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
                 throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
             }
 
+            requests.inc()
             return response.XML
         }
 
@@ -305,7 +318,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             if (response.status != 200) {
                 throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
             }
-
+            requests.inc()
             return response.XML
         }
     }
