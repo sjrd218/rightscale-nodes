@@ -52,8 +52,8 @@ import groovy.xml.MarkupBuilder
  * <p>Shortcuts:</p>
  * <pre>
  * //convert String to Rest object:
- * def rest = "http://host/path" as Rest
- * 
+ * def rest = new Rest("http://host/path")
+ *
  * //add path to existing Rest object:
  * def rest2 = rest + '/subpath'
  *
@@ -104,21 +104,16 @@ public class Rest{
 			delegate
 		}
 		ClientResponse.metaClass.hasContentType={type->
-			delegate.type==type as MediaType
+			delegate.type== (type instanceof String?MediaType.valueOf(type):type)
 		}
 		ClientResponse.metaClass.hasCompatibleType={type->
-			delegate.type.isCompatible(type as MediaType)
+			delegate.type.isCompatible((type instanceof String ? MediaType.valueOf(type) : type))
 		}
 		ClientResponse.metaClass.requireStatus={status->
 			if(delegate.status!=status){
 				if(Rest.failureHandler) Rest.failureHandler.call(delegate)
 				else throw new RuntimeException("Expected ${status}, but response was ${delegate.status}: ${delegate}")
 			}
-		}
-		String.metaClass.asType = { Class c -> 
-			if (c==MediaType) MediaType.valueOf(delegate)
-			else if (c==Rest) new Rest(delegate)
-			else delegate.asType(c) 
 		}
 		WebResource.Builder.metaClass.leftShift<<{Map map->
 			map?.each{

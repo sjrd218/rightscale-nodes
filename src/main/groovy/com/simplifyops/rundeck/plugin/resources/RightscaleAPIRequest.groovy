@@ -198,7 +198,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getTags(final String href) {
-        def request = '/api/tags/by_resource' as Rest;
+        def request = new Rest('/api/tags/by_resource');
         request.addFilter(new LoggingFilter(System.out)); // debug output
         def ClientResponse response = request.post({}, [:], ["resource_hrefs[]": href]);
         if (response.status != 200) {
@@ -301,7 +301,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             /**
              * Request the servers data as XML
              */
-            def request = href as Rest;
+            def request = new Rest(href);
             request.addFilter(new LoggingFilter(System.out)); // debug output
             def ClientResponse response = request.get([:], params); // instance_detail contains extra info
             if (response.status != 200) {
@@ -313,7 +313,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
         }
 
         Node post(String href, Map params) {
-            def request = href as Rest;
+            def request = new Rest(href);
 
             request.addFilter(new LoggingFilter(System.out)); // debug output
             def ClientResponse response = request.post({}, [:], params);
