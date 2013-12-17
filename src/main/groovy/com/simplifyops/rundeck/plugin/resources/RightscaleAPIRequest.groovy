@@ -11,7 +11,7 @@ import com.sun.jersey.api.client.WebResource
 import com.sun.jersey.api.client.filter.ClientFilter
 import com.sun.jersey.api.client.filter.LoggingFilter
 import com.sun.jersey.api.representation.Form
-import org.apache.log4j.Logger;
+import org.apache.log4j.Logger
 
 class RightscaleAPIRequest implements RightscaleAPI {
     static Logger logger = Logger.getLogger(RightscaleAPIRequest.class);
@@ -37,7 +37,6 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
     public void initialize() {
         restClient.authenticate()
-        authenticated = true;
     }
 
     /**
@@ -217,6 +216,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
         private ArrayList<Object> cookies;
         private String baseUrl
+        private long lastAuthentication=0L;
 
         private MetricRegistry metrics = new MetricRegistry();
         private final Counter requests = metrics.counter(MetricRegistry.name(RestClient.class, "http.requests"));
@@ -248,7 +248,9 @@ class RightscaleAPIRequest implements RightscaleAPI {
         /**
          * Login and create a session.
          */
-        private void authenticate() {
+        synchronized void authenticate() {
+            //reset cookies
+            cookies = new ArrayList<Object>();
             //use a local Jersey client
             def client = Client.create()
             //add a filter to store and send all cookies received from the server
@@ -261,9 +263,6 @@ class RightscaleAPIRequest implements RightscaleAPI {
                     ClientResponse response = getNext().handle(request);
                     // copy cookies
                     if (response.getCookies() != null) {
-                        if (cookies == null) {
-                            cookies = new ArrayList<Object>();
-                        }
                         cookies.addAll(response.getCookies());
                     }
                     return response;
@@ -284,6 +283,45 @@ class RightscaleAPIRequest implements RightscaleAPI {
                 cookies == null
                 throw new ResourceModelSourceException("RightScale login error. " + response)
             }
+            authenticated=true
+            lastAuthentication=System.currentTimeMillis()
+        }
+
+        /**
+         * Calls authenticate only if last authentication was not within a certain amount of time
+         * @param delay millisecond time delay between reauthentication
+         * @return true if currently authenticated
+         */
+        synchronized boolean reauthenticate(long delay){
+            if(System.currentTimeMillis() > (lastAuthentication + delay)){
+                authenticated=false
+                authenticate()
+            }
+            return authenticated
+        }
+
+        /**
+         * Handle the request by calling a closure that returns a response, if
+         * the response status id 403, attempt to reauthenticate and if successful retry the original request
+         * @param makeRequest closure which makes the request and returns the response
+         * @return the response.XML
+         */
+        Node handleRequest(Closure makeRequest){
+            def ClientResponse response = makeRequest()
+            requests.inc()
+
+            if (response.status == 403) {
+                //authenticate if not re-authenticated in the last 30 seconds
+                if(reauthenticate(30*1000)){
+                    //retry request only if we are now authenticated again
+                    response=makeRequest()
+                    requests.inc()
+                }
+            }
+            if (response.status != 200) {
+                throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
+            }
+            return response.XML
         }
 
         /**
@@ -303,25 +341,20 @@ class RightscaleAPIRequest implements RightscaleAPI {
              */
             def request = new Rest(href);
             request.addFilter(new LoggingFilter(System.out)); // debug output
-            def ClientResponse response = request.get([:], params); // instance_detail contains extra info
-            if (response.status != 200) {
-                throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
-            }
 
-            requests.inc()
-            return response.XML
+            return handleRequest {
+                request.get([:], params)
+            }
         }
 
         Node post(String href, Map params) {
             def request = new Rest(href);
 
             request.addFilter(new LoggingFilter(System.out)); // debug output
-            def ClientResponse response = request.post({}, [:], params);
-            if (response.status != 200) {
-                throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
+
+            return handleRequest {
+                request.post({}, [:], params)
             }
-            requests.inc()
-            return response.XML
         }
     }
 
