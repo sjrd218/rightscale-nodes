@@ -67,6 +67,12 @@ class RightscaleBasicCache implements RightscaleCache {
         return refreshInterval <= 0 || ((System.currentTimeMillis() - lastRefresh) > refreshInterval);
     }
 
+    @Override
+    public void clear() {
+        resources.values().each {
+            it.clear()
+        }
+    }
     /**
      * Generic method for storing resources.
      * Also sets the lastRefresh and ctime for the collection.
@@ -304,6 +310,10 @@ class RightscaleBasicCache implements RightscaleCache {
 
         int size() {
             return collection.size()
+        }
+
+        void clear() {
+            collection.clear()
         }
     }
 

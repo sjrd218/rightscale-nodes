@@ -197,5 +197,11 @@ public class RightscaleCacheTest {
         Assert.assertFalse(coll.exists(key))
         Assert.assertEquals(0,coll.size())
 
+        coll.clear()
+        coll.putAll(input)
+        coll.clear()
+        Assert.assertEquals(0,coll.size())
+
+
     }
 }

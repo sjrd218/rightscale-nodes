@@ -9,6 +9,7 @@ import java.util.Map;
  */
 public interface RightscaleCache extends RightscaleAPI {
     void load(Closure c);
+    void clear();
     boolean needsRefresh();
     void setRefreshInterval(int millis);
     void updateClouds(Map<String, RightscaleResource> clouds);
