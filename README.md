@@ -24,27 +24,26 @@ Copy the `rightscale-nodes-x.y.jar` file to the `libext/` directory inside your 
 
 ## Configuration
 
-The plugin has a number of configuration options need to connect and produce Rundeck Nodes.
-Use the Configure page in the GUI to set them up initially. They roughly are organized into
-groups:
+The plugin has a number of configuration options needed to connect and produce Rundeck Nodes.
+Use the Configure page in the GUI to set them up initially. They roughly are organized:
 
 Connection
-* `Email`: String, Email address for RightScale User
-* `Password`: String, Password for RightScale User
-* `Endpoint`: String, RightScale  API Endpoint URL. Must support API v1.5
-* `Refresh Interval`: Integer, Minimum time in seconds between API requests to RightScale (default is 60)
+* `Email`: String, Email address for RightScale User.
+* `Password`: String, Password for RightScale User.
+* `Endpoint`: String, RightScale  API Endpoint URL. Must support API v1.5.
+* `Refresh Interval`: Integer, Minimum time in seconds between API requests to RightScale (default is 60).
 
 Mapping
-* `Default Node Username`: String, Default SSH username for remote execution
-* `Input Pattern`: String, Regular expression used to match resource inputs (default is .*)
-* `Tag Pattern`: String, Regular expression used to match resource tags (default is .*)
+* `Default Node Username`: String, Default SSH username for remote execution.
+* `Input Pattern`: String, Regular expression used to match resource inputs (default is .*).
+* `Tag Pattern`: String, Regular expression used to match resource tags (default is .*).
 * `Generate attributes from tags`: Boolean, For tags that contain an equal sign (foo=bar), generate a like node attribute.
 
 Debug
-* `HTTP request logging to service.log`: Boolean, Print debug HTTP request info and the content of the response to service.log
-* `Minute interval to log metric`: Integer, Log the codahale metrics to the service.log file at the specified minute interval (no logging if unset)
+* `HTTP request logging`: Boolean, Print debug HTTP request info and the content of the response to service.log.
+* `Metrics logging interval`: Integer, Log the codahale metrics to the service.log file at the specified minute interval (no logging if unset).
 
-*Warning*: Changing any configuration property will cause the plugin to be reloaded and cause a complete refresh.
+*Warning*: Changing any plugin configuration property will cause the plugin to be reloaded and a complete refresh.
 
 ## Resource model
 
@@ -64,7 +63,7 @@ Node attributes are given names using the following convention: `{{prefix}}.{{at
 
 For example, a Cloud's cloud_type value becomes a Node attribute called: `cloud.cloud_type`.
 Some resource data is used to generate Rundeck Tags.
-Tags are generated to represent different key Rightscale memberships
+Tags are generated to represent several Resource memberships useful for Rundeck Node filtering.
 (e.g, for datacenter.name, cloud.name, deployment.name).
 
 
@@ -108,15 +107,19 @@ match the Rightscale tags you wish to see as Rundeck node tags.
 Rundeck tags often represent a classification or a grouping but
 Rightscale (and possibly your team) might use Rightscale tags to define key/value
 pairs as extra metadata about your Instances
-(eg, node:resolvers=172.16.0.23, rs_monitoring:state=active).
+(eg, `node:resolvers=172.16.0.23, rs_monitoring:state=active`).
 
 If an equal sign character is contained in the tag value, you might wish to generate
 it as a Rundeck node attribute instead.
 
 Check the "Generate attributes from tags" configuration setting to map tags containing an equal
 sign to Rundeck node attributes.
-If configured, a Rightscale tag value, node:resolvers=172.16.0.23, becomes a Rundeck
-attribute: <attribute name='tags.node:resolvers' value='172.16.0.23'/>.
+If configured, a Rightscale tag value, `node:resolvers=172.16.0.23`, becomes a Rundeck
+attribute:
+
+```
+<attribute name='tags.node:resolvers' value='172.16.0.23'/>.
+```
 
 
 ## Refresh

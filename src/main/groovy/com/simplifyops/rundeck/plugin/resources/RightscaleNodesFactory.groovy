@@ -68,10 +68,10 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             .property(PropertyUtil.bool(TAG_ATTR, "Generate attributes from tags",
             "For tags that contain an equal sign (foo=bar), generate a like node attribute.",
             false, "true"))
-            .property(PropertyUtil.bool(HTTP_LOG, "HTTP request logging to service.log",
+            .property(PropertyUtil.bool(HTTP_LOG, "HTTP request logging",
             "Print debug HTTP request info and the content of the response to service.log ",
             false, "false"))
-            .property(PropertyUtil.integer(METRICS_INTVERVAL, "Minute interval to log metrics",
+            .property(PropertyUtil.integer(METRICS_INTVERVAL, "Metrics logging interval",
             "Log the codahale metrics to the service.log file at the specified minute interval (no logging if unset).",
             false, "15"))
             .build();
