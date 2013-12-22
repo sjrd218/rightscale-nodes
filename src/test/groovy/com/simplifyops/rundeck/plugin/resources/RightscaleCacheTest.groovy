@@ -37,6 +37,8 @@ public class RightscaleCacheTest {
         }
         Assert.assertEquals(1,cache.getClouds().size())
         Assert.assertEquals("cloud1",cache.getClouds().get("/api/clouds/1")['attributes']['name'])
+
+        Assert.assertEquals(1, cache.size())
     }
 
     @Test
@@ -71,7 +73,7 @@ public class RightscaleCacheTest {
                 DatacenterResource.burst(new XmlParser().parseText(XmlData.DATACENTERS),
                         'datacenter', DatacenterResource.&create))
         def resources = cache.getDatacenters()
-        Assert.assertEquals(2,resources.size())
+        Assert.assertEquals(3,resources.size())
     }
 
     @Test

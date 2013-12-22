@@ -73,6 +73,12 @@ class RightscaleBasicCache implements RightscaleCache {
             it.clear()
         }
     }
+
+    @Override
+    public int size() {
+        return resources.inject(0){ count, k, v -> count+ v.size() }
+    }
+
     /**
      * Generic method for storing resources.
      * Also sets the lastRefresh and ctime for the collection.
@@ -84,6 +90,7 @@ class RightscaleBasicCache implements RightscaleCache {
         def now = System.currentTimeMillis()
         this.resources[key].ctime = now
         lastRefresh = now
+        System.out.println("DEBUG: Loaded ${resources.size()} ${key} resources.")
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.simplifyops.rundeck.plugin.resources
 
-import com.codahale.metrics.Counter
 import com.codahale.metrics.MetricRegistry
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 import com.sun.jersey.api.client.Client
@@ -20,19 +19,25 @@ class RightscaleAPIRequest implements RightscaleAPI {
     def String password
     def String account
     def String endpoint
+    def boolean debug
 
     def RestClient restClient;
     def boolean authenticated = false;
+
+    private MetricRegistry metrics = RightscaleNodesFactory.metrics;
+
     /**
      * Default constructor.
      */
-    RightscaleAPIRequest(String email, String password, String account, String endpoint) {
+    RightscaleAPIRequest(String email, String password, String account, String endpoint, boolean debug) {
         this.email = email
         this.password = password
         this.account = account
         this.endpoint = endpoint
+        this.debug = debug
 
         restClient = new RestClient(endpoint)
+        logger.debug("RightscaleAPIRequest instantiated.")
     }
 
     public void initialize() {
@@ -46,11 +51,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getServers() {
         def Node xml = restClient.get("/api/servers", [view: "instance_detail"])
-        System.out.println("DEBUG: number of servers in response to GET /api/servers: " + xml.server.size())
-
         def servers = ServerResource.burst(xml, 'server', ServerResource.&create)
-        System.out.println("DEBUG: number of servers from burst: " + servers.size())
-
         return servers
     }
 
@@ -198,9 +199,12 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getTags(final String href) {
         def request = new Rest('/api/tags/by_resource');
-        request.addFilter(new LoggingFilter(System.out)); // debug output
+        if (debug) {
+            request.addFilter(new LoggingFilter(System.out)) // debug output
+        }
         def ClientResponse response = request.post({}, [:], ["resource_hrefs[]": href]);
         if (response.status != 200) {
+            logger.error("RightScale ${href} tags request error. ")
             throw new ResourceModelSourceException("RightScale ${href} tags request error. " + response)
         }
         return TagsResource.burst(response.XML, 'resource_tag', TagsResource.&create)
@@ -218,8 +222,10 @@ class RightscaleAPIRequest implements RightscaleAPI {
         private String baseUrl
         private long lastAuthentication=0L;
 
-        private MetricRegistry metrics = new MetricRegistry();
-        private final Counter requests = metrics.counter(MetricRegistry.name(RestClient.class, "http.requests"));
+        private def getReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.success"));
+        private def authReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "authentication"));
+        private def failReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.fail"));
+        private def timer = metrics.timer(MetricRegistry.name(RightscaleAPIRequest, 'request.duration'))
 
         RestClient(baseUrl) {
             // API defaults
@@ -249,6 +255,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
          * Login and create a session.
          */
         synchronized void authenticate() {
+            logger.debug("Authenticating ${email}...")
             //reset cookies
             cookies = new ArrayList<Object>();
             //use a local Jersey client
@@ -281,10 +288,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
              */
             if (response.status != 204) {
                 cookies == null
+                logger.warn("RightScale login error. ")
                 throw new ResourceModelSourceException("RightScale login error. " + response)
             }
             authenticated=true
+            authReqCount.inc()
             lastAuthentication=System.currentTimeMillis()
+            logger.debug("Successfully authenticated: ${email}")
         }
 
         /**
@@ -308,19 +318,23 @@ class RightscaleAPIRequest implements RightscaleAPI {
          */
         Node handleRequest(Closure makeRequest){
             def ClientResponse response = makeRequest()
-            requests.inc()
 
             if (response.status == 403) {
                 //authenticate if not re-authenticated in the last 30 seconds
                 if(reauthenticate(30*1000)){
                     //retry request only if we are now authenticated again
                     response=makeRequest()
-                    requests.inc()
+                    System.out.println("DEBUG: Reauthenticating to service.")
+                    logger.debug("Reauthenticating to service.")
+
                 }
             }
             if (response.status != 200) {
-                throw new ResourceModelSourceException("RightScale ${href} request error. " + response)
+                failReqCount.inc()
+                throw new ResourceModelSourceException("RightScale request error. " + response)
             }
+            getReqCount.inc()
+
             return response.XML
         }
 
@@ -335,22 +349,39 @@ class RightscaleAPIRequest implements RightscaleAPI {
             if (!href.endsWith('.xml')) {
                 href= href+'.xml'
             }
-            System.out.println("DEBUG: RightscaleAPIRequest.RestClient: Getting resource by href: ${href}")
+            def time = timer.time()
+            def long starttime = System.currentTimeMillis()
+            System.out.println("DEBUG: Requesting resource href: ${href}.")
+            logger.debug("Requesting resource href: ${href}.")
+
             /**
              * Request the servers data as XML
              */
             def request = new Rest(href);
-            request.addFilter(new LoggingFilter(System.out)); // debug output
+
+            if (debug) {
+                request.addFilter(new LoggingFilter(System.out)); // debug output
+            }
 
             return handleRequest {
-                request.get([:], params)
+                def response = request.get([:], params)
+
+                def endtime = System.currentTimeMillis()
+                def duration = (endtime - starttime)
+                System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
+                logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+                time.stop()
+                getReqCount.inc()
+                return response
             }
         }
 
         Node post(String href, Map params) {
             def request = new Rest(href);
 
-            request.addFilter(new LoggingFilter(System.out)); // debug output
+            if (debug) {
+                request.addFilter(new LoggingFilter(System.out)); // debug output
+            }
 
             return handleRequest {
                 request.post({}, [:], params)

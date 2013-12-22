@@ -54,7 +54,7 @@ public class RightscaleResourceTest {
         r.populate(newNode)
         Assert.assertEquals("attributes="+newNode.getAttributes(), "Bob's Eucalyptus 2665404372", newNode.getAttribute("cloud.name"))
         Assert.assertEquals("", newNode.getAttribute("cloud.description"))
-        Assert.assertTrue(newNode.getTags().contains('rs:'+r.attributes['name']))
+        Assert.assertTrue(newNode.getTags().contains(r.attributes['name']))
 
         // burst the XML into a Map of CloudResource objects, keyed by their href
         def Map map = CloudResource.burst(xml, 'cloud', CloudResource.&create)
@@ -79,7 +79,7 @@ public class RightscaleResourceTest {
         r.populate(newNode)
         Assert.assertEquals("name_1414276446", newNode.getAttribute("deployment.name"))
         Assert.assertEquals("description_4175578395", newNode.getAttribute("deployment.description"))
-        Assert.assertTrue(newNode.getTags().contains('rs:name_1414276446'))
+        Assert.assertTrue(newNode.getTags().contains('name_1414276446'))
 
     }
 
@@ -98,7 +98,7 @@ public class RightscaleResourceTest {
         Assert.assertEquals("description_3451411839", newNode.getAttribute("datacenter.description"))
         Assert.assertEquals("resource_2381700949", newNode.getAttribute("datacenter.resource_uid"))
         Assert.assertEquals(1,newNode.getTags().size())
-        Assert.assertTrue(newNode.getTags().contains('rs:name_1124252263'))
+        Assert.assertTrue(newNode.getTags().contains('name_1124252263'))
     }
 
     @Test
@@ -237,7 +237,7 @@ public class RightscaleResourceTest {
         Assert.assertEquals("enabled", newNode.getAttribute("server_array.state"))
         Assert.assertEquals("0", newNode.getAttribute("server_array.instances_count"))
         Assert.assertEquals(1,newNode.getTags().size())
-        Assert.assertTrue(newNode.getTags().contains('rs:array=name_767376035'))
+        Assert.assertTrue(newNode.getTags().contains('array=name_767376035'))
     }
 
     @Test
@@ -294,12 +294,12 @@ public class RightscaleResourceTest {
     @Test
     public void tags() {
         def xml = new XmlParser().parseText(XmlData.TAGS)
-        def r =  TagsResource.create(xml.children()[0])
+        def TagsResource r =  TagsResource.create(xml.children()[0])
         Assert.assertTrue(r instanceof TagsResource)
-        Assert.assertEquals(1, r.links.size())
+        Assert.assertEquals(2, r.links.size())
 
         def Collection tags = ((String)r.attributes['tags']).split(",")
-        Assert.assertEquals(2, tags.size())
+        Assert.assertEquals("incorrect tag count. tags="+tags, 2, tags.size())
 
         Assert.assertTrue("tag not found, color:red=false.", tags.contains("color:red=false"))
         Assert.assertTrue("tag not found, color:blue=true.", tags.contains("color:blue=true"))
@@ -307,6 +307,14 @@ public class RightscaleResourceTest {
         def newNode = new NodeEntryImpl()
         r.populate(newNode)
         Assert.assertEquals(2,newNode.getTags().size())
-        Assert.assertTrue(newNode.getTags().contains('rs:color:red=false'))
+        Assert.assertTrue(newNode.getTags().contains('color:red=false'))
+
+        Assert.assertTrue(TagsResource.hasAttributeForm("x:y=why"))
+        Assert.assertFalse(TagsResource.hasAttributeForm("x"))
+
+        r.setAttribute("x:y=why", newNode)
+        Assert.assertEquals("node attrs="+newNode.getAttributes(), "why",newNode.getAttribute("tags.x:y"))
+
+
     }
 }

@@ -78,6 +78,9 @@ public class RightscaleNodesTest {
         configuration.setProperty(RightscaleNodesFactory.USERNAME, "admin")
         configuration.setProperty(RightscaleNodesFactory.REFRESH_INTERVAL, "30")
         configuration.setProperty(RightscaleNodesFactory.INPUT_PATT, ".*")
+        configuration.setProperty(RightscaleNodesFactory.TAG_PATT, ".*")
+        configuration.setProperty(RightscaleNodesFactory.TAG_ATTR, "true")
+        configuration.setProperty(RightscaleNodesFactory.METRICS_INTVERVAL, "1")
         return configuration
     }
 
@@ -121,8 +124,8 @@ public class RightscaleNodesTest {
         Assert.assertEquals("2013/10/02 01:38:50 +0000",node1Attrs['server.created_at'])
         Assert.assertEquals("2013/10/02 01:38:50 +0000",node1Attrs['server.updated_at'])
         // datacenter
-        Assert.assertEquals("name_3567039744",node1Attrs['datacenter.name'])
-        Assert.assertEquals("description_4289106727",node1Attrs['datacenter.description'])
+        Assert.assertEquals("name_1134955039",node1Attrs['datacenter.name'])
+        Assert.assertEquals("description_1627153770",node1Attrs['datacenter.description'])
         // instance
         Assert.assertEquals("attrs"+node1Attrs,"name_1680878585",node1Attrs['instance.name'])
         Assert.assertEquals("resource_3580826380",node1Attrs['instance.resource_uid'])
@@ -131,6 +134,7 @@ public class RightscaleNodesTest {
         Assert.assertEquals("test_privatedns_2598540039.com",node1Attrs['instance.private_dns_name'])
         Assert.assertEquals("ud_33741804",node1Attrs['instance.user_data'])
         Assert.assertEquals("46.34.17.252",node1Attrs['instance.public_ip_address'])
+        Assert.assertEquals("46.34.17.252",node1.getHostname())
         Assert.assertEquals("6.4.5.3",node1Attrs['instance.private_ip_address'])
         Assert.assertEquals("fixed",node1Attrs['instance.pricing_type'])
         // cloud
@@ -149,7 +153,11 @@ public class RightscaleNodesTest {
         // ssh_key
         Assert.assertEquals("attrs"+node1Attrs,"resource_913473243",node1Attrs['ssh_key.resource_uid'])
         // tags
-        Assert.assertEquals("tags:"+node1.getTags(),"rs:name_3567039744,rs:Bob's Eucalyptus 125015575",node1.getTags().join(","))
+        def tags = node1.getTags()
+        Assert.assertEquals("tags="+tags+".",3,tags.size())
+        Assert.assertTrue("no tag for cloud", tags.contains("Bob's Eucalyptus 125015575"))
+        Assert.assertTrue("no tag for datacenter. tags="+tags, tags.contains("name_1134955039"))
+        Assert.assertTrue("no tag for deployment. tags="+tags, tags.contains("name_3567039744"))
     }
     @Test
     public void getServerArrayNodes() {
@@ -183,11 +191,6 @@ public class RightscaleNodesTest {
          */
         nodes.loadCache()
 
-        /*
-        Assert.assertEquals(false,cache.needsRefresh())
-        */
-
-
         /**
          * Confirm RightscaleNodes has populated the cache with base data.
          */
@@ -197,7 +200,7 @@ public class RightscaleNodesTest {
         Assert.assertEquals(query.getServerTemplates().size(),cache.getServerTemplates().size())
         Assert.assertEquals(query.getServerArrays().size(),cache.getServerArrays().size())
         cache.getClouds().values().each { cloud ->
-            Assert.assertEquals(2,cache.getDatacenters(cloud.getId()).size())
+            Assert.assertEquals(3,cache.getDatacenters(cloud.getId()).size())
             Assert.assertEquals(2,cache.getInstanceTypes(cloud.getId()).size())
             Assert.assertEquals(2,cache.getSshKeys(cloud.getId()).size())
             Assert.assertEquals(2,cache.getSubnets(cloud.getId()).size())
@@ -235,8 +238,9 @@ public class RightscaleNodesTest {
         Assert.assertEquals(false,nodes.needsRefresh())
     }
 
-    @Test
-    public void filteredInputs() {
+   @Test
+
+     public void filteredInputs() {
 
         def  query = new RightscaleBasicCache()
         initializeCache(query)

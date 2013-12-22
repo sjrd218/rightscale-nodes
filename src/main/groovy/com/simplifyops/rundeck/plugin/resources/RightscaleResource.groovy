@@ -65,7 +65,6 @@ class RightscaleResource {
         attributes.each { name, value ->
             node.setAttribute(generateAttributeName(name), value)
         }
-        node.setHostname(attributes['public_dns_name'])
     }
 
     String generateAttributeName(String name) {
@@ -73,6 +72,10 @@ class RightscaleResource {
         if (null != prefix && !"".equals(prefix)) keys << prefix
         keys << name
         return keys.join(attrSep)
+    }
+
+    static void setTag(String tag, NodeEntryImpl node) {
+        if (!node.tags.contains(tag)) node.tags.add(tag)
     }
 
     static Map burst(Node xmlNode, String key, Closure builder) {
@@ -106,7 +109,7 @@ class CloudResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        if (!node.tags.contains("rs:" + attributes['name'])) node.tags.add("rs:" + attributes['name'])
+        setTag(attributes['name'], node)
     }
 }
 
@@ -129,7 +132,7 @@ class DeploymentResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        if (!node.tags.contains("rs:" + attributes['name'])) node.tags.add("rs:" + attributes['name'])
+        setTag(attributes['name'], node)
     }
 }
 
@@ -152,7 +155,7 @@ class DatacenterResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        if (!node.tags.contains("rs:" + attributes['name'])) node.tags.add("rs:" + attributes['name'])
+        setTag(attributes['name'], node)
     }
 }
 
@@ -233,32 +236,17 @@ class InstanceResource extends RightscaleResource {
     static InstanceResource create(Node xmlNode) {
         return new InstanceResource(xmlNode)
     }
-    /**
-     * Only includes Instances that are in state 'operational'.
-     * @param xmlNode
-     * @param key
-     * @param builder
-     * @return
-     */
-    static Map burst(Node xmlNode, String key, Closure builder) {
-        def results = [:]
-        xmlNode[key].each {
-            if ("operational".equals(it.state.text())) {
-                def RightscaleResource r = builder(it)
-                results[r.links['self']] = r
-            }
-        }
-        return results
-    }
 
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        node.setHostname(attributes['public_ip_address'])
+        node.setHostname(attributes['public_ip_address']) // TODO: Convention agreement.
+        System.out.println("DEBUG: Set ${node.getNodename()}.hostname="+attributes['public_ip_address'])
     }
 }
 
 class ServerResource extends RightscaleResource {
+    def cloud
 
     ServerResource() {
         super()
@@ -271,8 +259,12 @@ class ServerResource extends RightscaleResource {
         attributes['state'] = xmlNode.state.text()
         attributes['created_at'] = xmlNode.created_at.text()
         attributes['updated_at'] = xmlNode.updated_at.text()
+        /*
+         * Generate a link to the cloud. Get it from the current_instance.
+         */
         def cloud_href = xmlNode.current_instance.links.link.find { it.'@rel' == 'cloud' }?.'@href'
         if (null != cloud_href) links['cloud'] = cloud_href
+        cloud = cloud_href
     }
 
     static RightscaleResource create(Node xmlNode) {
@@ -310,7 +302,8 @@ class ServerArrayResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        if (!node.tags.contains("rs:array=" + attributes['name'])) node.tags.add("rs:array=" + attributes['name'])
+        def tag = "array=" + attributes['name']
+        setTag(tag, node)
     }
 }
 
@@ -410,6 +403,11 @@ class TagsResource extends RightscaleResource {
         xmlNode.links.link.each {
             links[it.'@rel'] = it.'@href'
         }
+        // make resource a synonym for self so #burst() function can find it.
+        links['self'] = links['resource']
+        /**
+         * Flatten tag elements into a comma separated list.
+         */
         def tags = []
         xmlNode.tags.tag.each {
             tags << it.name.text()
@@ -421,11 +419,31 @@ class TagsResource extends RightscaleResource {
         return new TagsResource(xmlNode)
     }
 
+
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
         attributes['tags'].split(",").each {
-            if (!node.tags.contains(it)) node.tags.add("rs:" + it)
+            setTag(it, node)
+        }
+        node.setAttribute('resource_tags',attributes['tags'])
+    }
+
+    public String toString() {
+        return attributes['tags']
+    }
+
+    static boolean hasAttributeForm(String name) {
+        def m = name =~ /([^=]+)=([^=]+)/
+        return m.matches()
+    }
+
+     void setAttribute(String input, NodeEntryImpl node) {
+        def m = input =~ /([^=]+)=([^=]+)/
+        if (m.matches()) {
+            def String name = m[0][1]
+            def String value = m[0][2]
+            node.setAttribute(generateAttributeName(name), value)
         }
     }
 }

@@ -72,6 +72,17 @@ static def DATACENTERS = '''
         <resource_uid>resource_527381494</resource_uid>
         <name>name_1134955039</name>
       </datacenter>
+      <datacenter>
+        <links>
+          <link rel="self" href="/api/clouds/926218062/datacenters/ABC3119440049DEF"/>
+          <link rel="cloud" href="/api/clouds/929741027"/>
+        </links>
+        <description>description_1627153770</description>
+        <actions></actions>
+        <resource_uid>resource_527381494</resource_uid>
+        <name>name_1134955039</name>
+      </datacenter>
+
     </datacenters>
     '''
 static def DEPLOYMENTS = '''
@@ -278,7 +289,7 @@ static def INSTANCES = '''
           <link rel="kernel_image" href="/api/clouds/929741027/images/ABC1729329719DEF"/>
           <link rel="instance_type" href="/api/clouds/929741027/instance_types/ABC885107623DEF"/>
           <link rel="ssh_key" href="/api/clouds/929741027/ssh_keys/ABC2568952498DEF"/>
-          <link rel="datacenter" href="/api/clouds/929741027/datacenters/ABC817760025DEF"/>
+          <link rel="datacenter" href="/api/clouds/926218062/datacenters/ABC3119440049DEF"/>
         </links>
         <description></description>
         <terminated_at></terminated_at>
