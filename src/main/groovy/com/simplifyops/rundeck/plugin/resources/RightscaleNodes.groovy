@@ -571,7 +571,7 @@ public class RightscaleNodes implements ResourceModelSource {
                     /**
                      * Experiment: Generate an attribute if the tag contains an equal sign.
                      */
-                    if (configuration.getProperty(RightscaleNodesFactory.TAG_ATTR) && tag.hasAttributeForm(name)) {
+                    if (Boolean.parseBoolean(configuration.getProperty(RightscaleNodesFactory.TAG_ATTR)) && tag.hasAttributeForm(name)) {
                         System.out.println("DEBUG: mapping tag to node attribute: ${name}.")
                         logger.debug("mapping tag to node attribute: ${name}.")
                         tag.setAttribute(name, newNode)
