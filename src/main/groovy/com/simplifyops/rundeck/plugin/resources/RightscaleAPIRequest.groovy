@@ -208,16 +208,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getTags(final String href) {
-        def request = new Rest('/api/tags/by_resource');
-        if (debug) {
-            request.addFilter(new LoggingFilter(System.out)) // debug output
-        }
-        def ClientResponse response = request.post({}, [:], ["resource_hrefs[]": href]);
-        if (response.status != 200) {
-            logger.error("RightScale ${href} tags request error. ")
-            throw new ResourceModelSourceException("RightScale ${href} tags request error. " + response)
-        }
-        return TagsResource.burst(response.XML, 'resource_tag', TagsResource.&create)
+        def xml = restClient.post('/api/tags/by_resource',[:],["resource_hrefs[]": href])
+        return TagsResource.burst(xml, 'resource_tag', TagsResource.&create)
     }
 
 
@@ -309,7 +301,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             if (response.status != 204) {
                 cookies == null
                 logger.warn("RightScale login error. ")
-                throw new ResourceModelSourceException("RightScale login error. " + response)
+                throw new RightscaleAPIRequestException("RightScale login error. " + response)
             }
             authenticated=true
             authReqCount.inc()
@@ -351,7 +343,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
             if (response.status != 200) {
                 failReqCount.inc()
-                throw new ResourceModelSourceException("RightScale request error. " + response)
+                throw new RightscaleAPIRequestException("RightScale request error. " + response)
             }
             getReqCount.inc()
 
@@ -365,7 +357,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
          * @return Node containing the resource as XML data.
          */
         Node get(String href, Map params) {
-            if (null == href) throw new IllegalAccessException("href cannot be null")
+            if (null == href) throw new IllegalArgumentException("href cannot be null")
             if (!href.endsWith('.xml')) {
                 href= href+'.xml'
             }
@@ -396,7 +388,12 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
         }
 
-        Node post(String href, Map params) {
+        Node post(String href, Map params, Map data) {
+            def time = timer.time()
+            def long starttime = System.currentTimeMillis()
+            System.out.println("DEBUG: Requesting resource href: ${href}.")
+            logger.debug("Requesting resource href: ${href}.")
+
             def request = new Rest(href);
 
             if (debug) {
@@ -404,10 +401,34 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
 
             return handleRequest {
-                request.post({}, [:], params)
+                def response = request.post({}, params, data)
+
+                time.stop()
+                def endtime = System.currentTimeMillis()
+                def duration = (endtime - starttime)
+                System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
+                logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+                return response
             }
         }
     }
 
+    class RightscaleAPIRequestException extends ResourceModelSourceException {
+        public RightscaleAPIRequestException() {
+            super();
+        }
+
+        public RightscaleAPIRequestException(String msg) {
+            super(msg);
+        }
+
+        public RightscaleAPIRequestException(Exception cause) {
+            super(cause);
+        }
+
+        public RightscaleAPIRequestException(String msg, Exception cause) {
+            super(msg, cause);
+        }
+    }
 }
 
