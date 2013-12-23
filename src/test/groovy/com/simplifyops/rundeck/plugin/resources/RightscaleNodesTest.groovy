@@ -81,6 +81,8 @@ public class RightscaleNodesTest {
         configuration.setProperty(RightscaleNodesFactory.TAG_PATT, ".*")
         configuration.setProperty(RightscaleNodesFactory.TAG_ATTR, "true")
         configuration.setProperty(RightscaleNodesFactory.METRICS_INTVERVAL, "1")
+        configuration.setProperty(RightscaleNodesFactory.HTTP_TIMEOUT, "30000")
+        configuration.setProperty(RightscaleNodesFactory.HTTP_LOG, "false")
         return configuration
     }
 
