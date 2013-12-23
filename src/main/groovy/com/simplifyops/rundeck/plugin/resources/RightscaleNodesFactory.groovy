@@ -58,17 +58,17 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             .property(PropertyUtil.string(EMAIL, "Email", "Email address for RightScale User.", true, null))
             .property(PropertyUtil.string(PASSWORD, "Password", "RightScale Password.", true, null))
             .property(PropertyUtil.string(ACCOUNT, "Account", "RightScale Account", true, null))
-            .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5.", false, "https://us-3.rightscale.com"))
+            .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5 (default: https://us-3.rightscale.com).", false, "https://us-3.rightscale.com"))
             .property(PropertyUtil.integer(REFRESH_INTERVAL, "Refresh Interval",
-            "Minimum time in seconds between API requests to RightScale (default is 60).", false, "60"))
+            "Minimum time in seconds between API requests to RightScale (default: 60).", false, "60"))
             .property(PropertyUtil.string(USERNAME, "Default Node Username", "Username for remote command execution.", true, null))
             .property(PropertyUtil.string(INPUT_PATT, "Input pattern",
-            "Regular expression used to match resource inputs (default is .*).", false, ".*"))
+            "Regular expression used to match resource inputs (default: .*).", false, ".*"))
             .property(PropertyUtil.string(TAG_PATT, "Tag pattern",
-            "Regular expression used to match resource tags (default is .*).", false, ".*"))
+            "Regular expression used to match resource tags (default: .*).", false, ".*"))
             .property(PropertyUtil.bool(TAG_ATTR, "Generate attributes from tags",
             "For tags that contain an equal sign (foo=bar), generate a like node attribute.",
-            false, "true"))
+            false, "false"))
             .property(PropertyUtil.integer(HTTP_TIMEOUT, "HTTP timeout",
             "Timeout for HTTP connection and read requests (time in milliseconds).",
             false, "30000"))
