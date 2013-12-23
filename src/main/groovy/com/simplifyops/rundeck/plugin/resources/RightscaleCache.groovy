@@ -1,15 +1,12 @@
 package com.simplifyops.rundeck.plugin.resources;
 
-import groovy.lang.Closure;
-
-import java.util.Map;
 
 /**
  *
  */
 public interface RightscaleCache extends RightscaleAPI {
     void load(Closure c);
-    void clear();
+
     int size();
     boolean needsRefresh();
     void setRefreshInterval(int millis);

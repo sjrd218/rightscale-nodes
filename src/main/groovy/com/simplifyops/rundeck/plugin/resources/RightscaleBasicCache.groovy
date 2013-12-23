@@ -67,12 +67,6 @@ class RightscaleBasicCache implements RightscaleCache {
         return refreshInterval <= 0 || ((System.currentTimeMillis() - lastRefresh) > refreshInterval);
     }
 
-    @Override
-    public void clear() {
-        resources.values().each {
-            it.clear()
-        }
-    }
 
     @Override
     public int size() {
@@ -156,10 +150,6 @@ class RightscaleBasicCache implements RightscaleCache {
         storeResources('image', images)
     }
 
-    @Override
-    Map<String, RightscaleResource> getInputs(String cloud_id, String instance_id) {
-        return getResources('inputs')
-    }
 
     Map<String, RightscaleResource> getInputs() {
         return getResources('inputs')

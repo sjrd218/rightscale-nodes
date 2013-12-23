@@ -168,12 +168,6 @@ class RightscaleAPIRequest implements RightscaleAPI {
      * @param instance_id
      * @return List of maps containing name/value pairs.
      */
-    @Override
-    public Map<String, RightscaleResource> getInputs(final String cloud_id, String instance_id) {
-        def String href = "/api/clouds/${cloud_id}/instances/${instance_id}/inputs"
-        def Node xml = restClient.get(href, [:])
-        return InputResource.burst(xml, 'input', InputResource.&create)
-    }
 
     @Override
     public Map<String, RightscaleResource> getInputs(final String href) {
