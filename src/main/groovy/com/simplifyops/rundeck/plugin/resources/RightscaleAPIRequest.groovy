@@ -7,6 +7,8 @@ import com.sun.jersey.api.client.ClientHandlerException
 import com.sun.jersey.api.client.ClientRequest
 import com.sun.jersey.api.client.ClientResponse
 import com.sun.jersey.api.client.WebResource
+import com.sun.jersey.api.client.config.ClientConfig
+import com.sun.jersey.api.client.config.DefaultClientConfig
 import com.sun.jersey.api.client.filter.ClientFilter
 import com.sun.jersey.api.client.filter.LoggingFilter
 import com.sun.jersey.api.representation.Form
@@ -24,20 +26,34 @@ class RightscaleAPIRequest implements RightscaleAPI {
     def RestClient restClient;
     def boolean authenticated = false;
 
+    def int timeout = 0; // default timeout interval set to infinity.
+
     private MetricRegistry metrics = RightscaleNodesFactory.metrics;
 
     /**
      * Default constructor.
      */
-    RightscaleAPIRequest(String email, String password, String account, String endpoint, boolean debug) {
+    RightscaleAPIRequest(String email, String password, String account, String endpoint) {
         this.email = email
         this.password = password
         this.account = account
         this.endpoint = endpoint
-        this.debug = debug
 
         restClient = new RestClient(endpoint)
         logger.debug("RightscaleAPIRequest instantiated.")
+    }
+
+    RightscaleAPIRequest(Properties p) {
+        this(p.getProperty(RightscaleNodesFactory.EMAIL),
+                p.getProperty(RightscaleNodesFactory.PASSWORD),
+                p.getProperty(RightscaleNodesFactory.ACCOUNT),
+                p.getProperty(RightscaleNodesFactory.ENDPOINT))
+        if (p.containsKey(RightscaleNodesFactory.HTTP_LOG)) {
+            debug = Boolean.parseBoolean(p.getProperty(RightscaleNodesFactory.HTTP_LOG))
+        }
+        if (p.containsKey(RightscaleNodesFactory.HTTP_TIMEOUT)) {
+            timeout = Integer.parseInt(p.getProperty(RightscaleNodesFactory.HTTP_TIMEOUT))
+        }
     }
 
     public void initialize() {
@@ -232,6 +248,11 @@ class RightscaleAPIRequest implements RightscaleAPI {
             Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
             this.baseUrl = baseUrl
             Rest.baseUrl = this.baseUrl;
+
+            ClientConfig cc = new DefaultClientConfig();
+            cc.getProperties().put(ClientConfig.PROPERTY_CONNECT_TIMEOUT, timeout);
+            cc.getProperties().put(ClientConfig.PROPERTY_READ_TIMEOUT, timeout);
+            Rest.client = Client.create(cc)
             addSendCookieFilter(Rest.client)
         }
 
@@ -259,7 +280,12 @@ class RightscaleAPIRequest implements RightscaleAPI {
             //reset cookies
             cookies = new ArrayList<Object>();
             //use a local Jersey client
-            def client = Client.create()
+            ClientConfig cc = new DefaultClientConfig();
+            cc.getProperties().put(ClientConfig.PROPERTY_CONNECT_TIMEOUT, timeout);
+            cc.getProperties().put(ClientConfig.PROPERTY_READ_TIMEOUT, timeout);
+
+            def client = Client.create(cc)
+
             //add a filter to store and send all cookies received from the server
             client.addFilter(new ClientFilter() {
                 @Override

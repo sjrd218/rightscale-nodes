@@ -35,11 +35,14 @@ Connection
 
 Mapping
 * `Default Node Username`: String, Default SSH username for remote execution.
-* `Input Pattern`: String, Regular expression used to match resource inputs (default is .*).
-* `Tag Pattern`: String, Regular expression used to match resource tags (default is .*).
+* `Input Pattern`: String, Regular expression used to match
+[ResourceInputs](http://reference.rightscale.com/api1.5/resources/ResourceInputs.html) (default is .*).
+* `Tag Pattern`: String, Regular expression used to match
+[ResourceTags](http://reference.rightscale.com/api1.5/resources/ResourceTags.html) (default is .*).
 * `Generate attributes from tags`: Boolean, For tags that contain an equal sign (foo=bar), generate a like node attribute.
 
 Debug
+* `HTTP timeout`: Integer, Cause an error if HTTP connect or read requests fail after the specified milliseconds. (Set it to 0 for infinite interval).
 * `HTTP request logging`: Boolean, Print debug HTTP request info and the content of the response to service.log.
 * `Metrics logging interval`: Integer, Log the codahale metrics to the service.log file at the specified minute interval (no logging if unset).
 
@@ -52,8 +55,20 @@ to Rundeck. A Rightscale Server or ServerArray instance is actually defined in t
 
 The plugin makes an HTTP request for each of the Rightscale Resources.
 At this time, the plugin retrieves the following kinds of Rightscale resources when generating Rundeck nodes:
-Clouds, Datacenters, Deployments, Images, Inputs, InstanceTypes, Instances,
-IpAddresses, ServerArrays, ServerTemplates, Servers, SshKeys, Subnets, Tags.
+[Clouds](http://reference.rightscale.com/api1.5/resources/ResourceClouds.html),
+[Datacenters](http://reference.rightscale.com/api1.5/resources/ResourceDatacenters.html),
+[Deployments](http://reference.rightscale.com/api1.5/resources/ResourceDeployments.html),
+[Images](http://reference.rightscale.com/api1.5/resources/ResourceDeployments.html),
+[Inputs](http://reference.rightscale.com/api1.5/resources/ResourceInputs.html),
+[InstanceTypes](http://reference.rightscale.com/api1.5/resources/ResourceInstanceTypes.html),
+[Instances](http://reference.rightscale.com/api1.5/resources/ResourceInstances.html),
+[ServerArrays](http://reference.rightscale.com/api1.5/resources/ResourceServerArrays.html),
+[ServerTemplates](http://reference.rightscale.com/api1.5/resources/ResourceServerTemplates.html),
+[Servers](http://reference.rightscale.com/api1.5/resources/ResourceServers.html),
+[SshKeys](http://reference.rightscale.com/api1.5/resources/ResourceSshKeys.html),
+[Subnets](http://reference.rightscale.com/api1.5/resources/ResourceSubnets.html),
+[Tags](http://reference.rightscale.com/api1.5/resources/ResourceTags.html)
+.
 
 The plugin supports a few conventions to map the multiple resources to Rundeck Nodes.
 The data for each type of resource is prefixed with its own key. For example,
@@ -118,7 +133,7 @@ If configured, a Rightscale tag value, `node:resolvers=172.16.0.23`, becomes a R
 attribute:
 
 ```
-<attribute name='tags.node:resolvers' value='172.16.0.23'/>.
+<attribute name='tags.node:resolvers' value='172.16.0.23'/>
 ```
 
 
@@ -132,7 +147,7 @@ at a time interval specified by the configuration property, `Refresh Interval`.
 To traverse the data linked to by the Instances, the plugin makes multiple HTTP requests
 to the Rightscale API to gather the needed Resources and stores it in an internal cache.
 
-After each refresh, the plugin generates a Node set from the API request data stored in the cache.
+During each refresh, the plugin generates a Node set from the API request data stored in the cache.
 
 
 

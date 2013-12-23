@@ -29,6 +29,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
     public static final String INPUT_PATT = "inputs";
     public static final String TAG_PATT = "tags";
     public static final String TAG_ATTR = "generateTagAttributes";
+    public static final String HTTP_TIMEOUT = "httpTimeout";
     public static final String HTTP_LOG = "httpLog";
     public static final String METRICS_INTVERVAL = "metricsInterval";
 
@@ -68,6 +69,9 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             .property(PropertyUtil.bool(TAG_ATTR, "Generate attributes from tags",
             "For tags that contain an equal sign (foo=bar), generate a like node attribute.",
             false, "true"))
+            .property(PropertyUtil.integer(HTTP_TIMEOUT, "HTTP timeout",
+            "Timeout for HTTP connection and read requests (time in milliseconds).",
+            false, "30000"))
             .property(PropertyUtil.bool(HTTP_LOG, "HTTP request logging",
             "Print debug HTTP request info and the content of the response to service.log ",
             false, "false"))

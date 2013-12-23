@@ -44,15 +44,7 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param configuration Properties containing plugin configuration values.
      */
     public RightscaleNodes(Properties configuration) {
-        this(configuration,
-                new RightscaleAPIRequest(
-                        configuration.getProperty(RightscaleNodesFactory.EMAIL),
-                        configuration.getProperty(RightscaleNodesFactory.PASSWORD),
-                        configuration.getProperty(RightscaleNodesFactory.ACCOUNT),
-                        configuration.getProperty(RightscaleNodesFactory.ENDPOINT),
-                        Boolean.parseBoolean(configuration.getProperty(RightscaleNodesFactory.HTTP_LOG))
-                )
-        )
+        this(configuration, new RightscaleAPIRequest(configuration))
     }
 
     /**
@@ -104,7 +96,14 @@ public class RightscaleNodes implements ResourceModelSource {
         if (null == configuration.getProperty(RightscaleNodesFactory.INPUT_PATT)) {
             throw new ConfigurationException("inputs is required");
         }
-
+        final String timeout = configuration.getProperty(RightscaleNodesFactory.HTTP_TIMEOUT)
+        if (null != timeout) {
+            try {
+                Integer.parseInt(timeout);
+            } catch (NumberFormatException e) {
+                throw new ConfigurationException(RightscaleNodesFactory.HTTP_TIMEOUT + " value is not valid: " + timeout);
+            }
+        }
         final String metricsInterval = configuration.getProperty(RightscaleNodesFactory.METRICS_INTVERVAL)
         if (null != metricsInterval) {
             try {
