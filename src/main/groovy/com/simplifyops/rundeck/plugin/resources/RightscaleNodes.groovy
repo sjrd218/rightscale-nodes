@@ -10,7 +10,7 @@ import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException
 import com.dtolabs.rundeck.core.resources.ResourceModelSource
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 import com.codahale.metrics.MetricRegistry
-
+import groovyx.gpars.GParsPool
 import org.apache.log4j.Logger
 
 import java.util.concurrent.TimeUnit
@@ -162,20 +162,24 @@ public class RightscaleNodes implements ResourceModelSource {
         if (!cachePrimed) {
             logger.debug("loadCache() Priming cache")
             System.out.println("DEBUG: loadCache() Priming cache")
-
-            cache.updateClouds(query.getClouds())
-            cache.updateDeployments(query.getDeployments())
-            cache.updateServerTemplates(query.getServerTemplates())
-
+            GParsPool.withPool {
+                GParsPool.executeAsyncAndWait(
+                        { cache.updateClouds(query.getClouds()) },
+                        { cache.updateDeployments(query.getDeployments()) },
+                        { cache.updateServerTemplates(query.getServerTemplates()) }
+                )
+            }
             def clouds = cache.getClouds().values()
-            clouds.each { cloud ->
-                def cloud_id = cloud.getId()
-                System.out.println("DEBUG: Loading cache with resources for cloud: ${cloud.attributes['name']}")
-                logger.debug("Loading cache with resources for cloud: ${cloud.attributes['name']}")
-                cache.updateDatacenters(query.getDatacenters(cloud_id))
-                cache.updateInstanceTypes(query.getInstanceTypes(cloud_id))
-
-                cache.updateSubnets(query.getSubnets(cloud_id))
+            GParsPool.withPool {
+                clouds.eachParallel { cloud ->
+                    def cloud_id = cloud.getId()
+                    System.out.println("DEBUG: Loading cache with resources for cloud: ${cloud.attributes['name']}")
+                    logger.debug("Loading cache with resources for cloud: ${cloud.attributes['name']}")
+                    cache.updateDatacenters(query.getDatacenters(cloud_id))
+                    cache.updateInstanceTypes(query.getInstanceTypes(cloud_id))
+                    cache.updateSubnets(query.getSubnets(cloud_id))
+                    cache.updateSshKeys(query.getSshKeys(cloud_id))
+                }
             }
             cachePrimed = true;
             logger.debug("loadCache() cache prime complete")
@@ -183,76 +187,97 @@ public class RightscaleNodes implements ResourceModelSource {
         }
 
         /**
-         * Get the Instances and their Images, Tags and Inputs
+         * Get the Instances.
          */
         def clouds = cache.getClouds().values()
-        clouds.each { cloud ->
-            def cloud_id = cloud.getId()
-            cache.updateSshKeys(query.getSshKeys(cloud_id))
+        GParsPool.withPool {
+            clouds.eachParallel { cloud ->
+                def cloud_id = cloud.getId()
 
-            def cloudInstancesTimer = metrics.timer(MetricRegistry.name(RightscaleNodes, "loadCache.cloud.${cloud_id}.instances.duration")).time()
-            cache.updateInstances(query.getInstances(cloud_id))
-            cloudInstancesTimer.stop()
+                def cloudInstancesTimer = metrics.timer(MetricRegistry.name(RightscaleNodes, "loadCache.cloud.${cloud_id}.instances.duration")).time()
+                cache.updateInstances(query.getInstances(cloud_id))
+                cloudInstancesTimer.stop()
 
-            // Filter on instances that are in the 'operational' state.
-            def instances = cache.getInstances(cloud_id).values().findAll {
-                "operational".equalsIgnoreCase(it.attributes['state'])
-            }
-            System.out.println("DEBUG: Found ${instances.size()} operational instances.")
-            logger.debug("Found ${instances.size()} operational instances.")
+                // Filter on instances that are in the 'operational' state.
+                def operationalInstances = cache.getInstances(cloud_id).values().findAll {
+                    "operational".equalsIgnoreCase(it.attributes['state'])
+                }
+                System.out.println("DEBUG: Found ${operationalInstances.size()} operational instances in cloud ${cloud_id}.")
+                logger.debug("Found ${operationalInstances.size()} operational instances in cloud ${cloud_id}.")
 
-            /**
-             * Post process the Instances to gather other linked resources. Only instances in the operational state are proessed..
-             *  - Images: It's assumed that instances share a small set of base images. Get only the ones in use.
-             *  - Tags: Tags aren't referenced as a link and must be searched for.
-             *  - Inputs: Resource Inputs must also be searched for.
-             */
-            Map<String, RightscaleResource> images = [:]
-            Map<String, RightscaleResource> tags = [:]
-            def instanceTimer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'loadCache.instance.duration'))
+                /**
+                 * Post process the Instances to gather other linked resources. Only instances in the operational state are proessed..
+                 *  - Images: It's assumed that instances share a small set of base images. Get only the ones in use.
+                 *  - Tags: Tags aren't referenced as a link and must be searched for.
+                 *  - Inputs: Resource Inputs must also be searched for.
+                 */
 
-            instances.each { instance ->
-                def t = instanceTimer.time()
-                System.out.println("DEBUG: Retreiving image, inputs and tags for instance: ${instance.attributes['name']}.")
-                logger.debug("Retreiving image, inputs and tags for instance: ${instance.attributes['name']}.")
-                // Get the Image. Skip it if we already have it, otherwise query for it.
-                if (!cache.getImage(instance.links['image'])) {
-                    images.put(instance.links['image'], query.getImage(instance.links['image']))
+                Map<String, RightscaleResource> images = [:]
+                Map<String, RightscaleResource> tags = [:]
+                def instanceTimer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'loadCache.instance.duration'))
+
+                operationalInstances.each { instance ->
+                    def t = instanceTimer.time()
+                    System.out.println("DEBUG: Retreiving image, ${instance.links['image']} for instance: ${instance.links['self']}.")
+                    logger.debug("Retreiving image, ${instance.links['image']} for instance: ${instance.links['self']}.")
+
+                    // Get the Image. Skip it if we already have it, otherwise query for it.
+                    if (!cache.getImage(instance.links['image'])) {
+                        images.put(instance.links['image'], query.getImage(instance.links['image']))
+                    } else {
+                        System.out.println("DEBUG: Already cached image: ${instance.links['image']}")
+                    }
+                    System.out.println("DEBUG: Retreiving inputs, ${instance.links['inputs']} for instance: ${instance.links['self']}.")
+                    // Get the Inputs and update the cache with them.
+                    if (!cache.hasResource('inputs', instance.links['inputs'])) {
+                        cache.updateInputs(query.getInputs(instance.links['inputs']))
+                    } else {
+                        System.out.println("DEBUG: Already cached inputs, ${instance.links['inputs']}.")
+                    }
+                    // Get the Tags.
+                    System.out.println("DEBUG: Retreiving tags for instance: ${instance.links['self']}.")
+                    def linkedTags = query.getTags(instance.links['self']).values()
+                    System.out.println("DEBUG: Retreived ${linkedTags.size()} tags for instance ${instance.links['self']}.")
+                    linkedTags.each { tag ->
+                        System.out.println("DEBUG: Caching tags: \"" + tag.attributes['tags'] + "\" for instance: " + instance.attributes['name'])
+                        tags.put(instance.links['self'], tag)
+                    }
+                    t.stop()
                 }
 
-                // Get the Inputs and update the cache with them.
-                cache.updateInputs(query.getInputs(instance.links['inputs']))
-                // Get the Tags.
-                def linkedTags = query.getTags(instance.links['self']).values()
-                System.out.println("DEBUG: Retreived ${linkedTags.size()} tags for this instance.")
-                linkedTags.each { tag ->
-                    System.out.println("DEBUG: Caching tags: \"" + tag.attributes['tags'] + "\" for instance: " + instance.attributes['name'])
-                    tags.put(instance.links['self'], tag)
-                }
-                t.stop()
+                cache.updateImages(images)
+                cache.updateTags(tags)
+
             }
-            cache.updateImages(images)
-            cache.updateTags(tags)
         }
         /**
-         * Get the Servers and ServerArrays
+         * Get the Servers
          */
         cache.updateServers(query.getServers())
+        /**
+         *  Get the ServerArrays
+         */
         cache.updateServerArrays(query.getServerArrays())
         def serverArrays = cache.getServerArrays().values()
+
         System.out.println("DEBUG: Retreiving instances for ${serverArrays.size()} server arrays.")
         logger.debug("Retreiving instances for ${serverArrays.size()} server arrays.")
         def severArrayTimer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'loadCache.server_array.duration'))
 
-        serverArrays.each {
-            System.out.println("DEBUG: Retreiving instances for server array: ${it.attributes['name']}.")
-            logger.debug("Retreiving instances for server array: ${it.attributes['name']}.")
-            def t = severArrayTimer.time()
-            def server_array_id = it.getId()
-            cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
-            t.stop()
+        GParsPool.withPool {
+            serverArrays.eachParallel {
+                System.out.println("DEBUG: Retreiving instances for server array: ${it.attributes['name']}.")
+                logger.debug("Retreiving instances for server array: ${it.attributes['name']}.")
+                def t = severArrayTimer.time()
+                def server_array_id = it.getId()
+                cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
+                t.stop()
+            }
         }
 
+        /**
+         * Done loading the cache.
+         */
         def endtime = System.currentTimeMillis()
         def duration = (endtime - starttime)
         System.out.println("DEBUG: loadCache() completed. (resources=${cache.size()}, duration=${duration})")
@@ -332,8 +357,7 @@ public class RightscaleNodes implements ResourceModelSource {
         logger.debug("DEBUG: refresh() started.")
 
         // load up the cache.
-       loadCache()
-
+        loadCache()
 
         /**
          * Generate the nodes.
@@ -507,6 +531,8 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param newNode
      */
     void populateLinkedResources(RightscaleAPI api, InstanceResource instance, NodeEntryImpl newNode) {
+        System.out.println("DEBUG: Populating node with instance data from ${instance.links['self']}.")
+
         def long starttime = System.currentTimeMillis()
         def timer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'populateLinkedResources.duration')).time()
 
@@ -557,7 +583,7 @@ public class RightscaleNodes implements ResourceModelSource {
                     break
             }
         }
-        System.out.println("DEBUG: retrieving tags for instance: " + instance.links['self'])
+        System.out.println("DEBUG: populating node tags for instance: " + instance.links['self'])
         logger.debug("retrieving tags for instance: " + instance.links['self'])
         def tags = api.getTags(instance.links['self'])
         tags.values().each { TagsResource tag ->
