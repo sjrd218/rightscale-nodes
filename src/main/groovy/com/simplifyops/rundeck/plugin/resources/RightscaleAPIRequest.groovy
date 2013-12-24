@@ -88,8 +88,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getDeployments() {
-        def Node xml = restClient.get("/api/deployments", [:])
-        return DeploymentResource.burst(xml, 'deployment', DeploymentResource.&create)
+        try {
+            def Node xml = restClient.get("/api/deployments", [:])
+            return DeploymentResource.burst(xml, 'deployment', DeploymentResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Return an empty list for unsupported resource type: deployments")
+            return [:]
+        }
     }
 
     /**
@@ -119,8 +124,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getDatacenters(String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters", [:])
-        return DatacenterResource.burst(xml, 'datacenter', DatacenterResource.&create)
+        try {
+            def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters", [:])
+            return DatacenterResource.burst(xml, 'datacenter', DatacenterResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Return an empty list for unsupported resource type: datacenters")
+            return [:]
+        }
     }
 
     /**
@@ -129,8 +139,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getSubnets(final String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/subnets", [:])
-        return SubnetResource.burst(xml, 'subnet', SubnetResource.&create)
+        try {
+            def Node xml = restClient.get("/api/clouds/${cloud_id}/subnets", [:])
+            return SubnetResource.burst(xml, 'subnet', SubnetResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Returning an empty list for unsupported resource type: subnets")
+            return [:]
+        }
     }
 
     /**
@@ -139,8 +154,14 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getSshKeys(final String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/ssh_keys", [:])
-        return SshKeyResource.burst(xml, 'ssh_key', SshKeyResource.&create)
+
+        try {
+            def Node xml = restClient.get("/api/clouds/${cloud_id}/ssh_keys", [:])
+            return SshKeyResource.burst(xml, 'ssh_key', SshKeyResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Return an empty list for unsupported resource type: ssh_keys")
+            return [:]
+        }
     }
 
     /**
@@ -171,8 +192,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
     @Override
     public Map<String, RightscaleResource> getInputs(final String href) {
-        def Node xml = restClient.get(href, [:])
-        return InputResource.burst(xml, 'input', InputResource.&create)
+        try {
+            def Node xml = restClient.get(href, [:])
+            return InputResource.burst(xml, 'input', InputResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Return an empty list for unsupported resource type: inputs")
+            return [:]
+        }
     }
 
     /**
@@ -182,8 +208,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getInstanceTypes(String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types", [:])
-        return InstanceTypeResource.burst(xml, 'instance_type', InstanceTypeResource.&create)
+        try {
+            def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types", [:])
+            return InstanceTypeResource.burst(xml, 'instance_type', InstanceTypeResource.&create)
+        } catch (UnsupportedResourceType e) {
+            logger.debug("Return an empty list for unsupported resource type: instance_type")
+            return [:]
+        }
     }
 
     /**
@@ -301,7 +332,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             if (response.status != 204) {
                 cookies == null
                 logger.warn("RightScale login error. ")
-                throw new RightscaleAPIRequestException("RightScale login error. " + response)
+                throw new RequestException("RightScale login error. " + response)
             }
             authenticated=true
             authReqCount.inc()
@@ -343,7 +374,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
             if (response.status != 200) {
                 failReqCount.inc()
-                throw new RightscaleAPIRequestException("RightScale request error. " + response)
+                throw new RequestException("RightScale request error. " + response)
             }
             getReqCount.inc()
 
@@ -376,7 +407,15 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
 
             return handleRequest {
-                def response = request.get([:], params)
+
+
+                def ClientResponse response = request.get([:], params)
+                if (response.status == 422) {
+                    // unsupported resource type
+                    System.out.println("DEBUG: Unsupported resource type: ${href}")
+                    logger.debug("Unsupported resource type: ${href}")
+                    throw new UnsupportedResourceType("href: ${href}")
+                }
 
                 def endtime = System.currentTimeMillis()
                 def duration = (endtime - starttime)
@@ -401,8 +440,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
 
             return handleRequest {
-                def response = request.post({}, params, data)
-
+                def ClientResponse response = request.post({}, params, data)
+                if (response.status == 422) {
+                    // unsupported resource type
+                    System.out.println("DEBUG: Unsupported resource type: ${href}")
+                    logger.debug("Unsupported resource type: ${href}")
+                    throw new UnsupportedResourceType("href: ${href}")
+                }
                 time.stop()
                 def endtime = System.currentTimeMillis()
                 def duration = (endtime - starttime)
@@ -413,20 +457,40 @@ class RightscaleAPIRequest implements RightscaleAPI {
         }
     }
 
-    class RightscaleAPIRequestException extends ResourceModelSourceException {
-        public RightscaleAPIRequestException() {
+    class RequestException extends ResourceModelSourceException {
+
+        public RequestException() {
             super();
         }
 
-        public RightscaleAPIRequestException(String msg) {
+        public RequestException(String msg) {
             super(msg);
         }
 
-        public RightscaleAPIRequestException(Exception cause) {
+        public RequestException(Exception cause) {
             super(cause);
         }
 
-        public RightscaleAPIRequestException(String msg, Exception cause) {
+        public RequestException(String msg, Exception cause) {
+            super(msg, cause);
+        }
+
+    }
+
+    class UnsupportedResourceType extends RequestException {
+        public UnsupportedResourceType() {
+            super();
+        }
+
+        public UnsupportedResourceType(String msg) {
+            super(msg);
+        }
+
+        public UnsupportedResourceType(Exception cause) {
+            super(cause);
+        }
+
+        public UnsupportedResourceType(String msg, Exception cause) {
             super(msg, cause);
         }
     }
