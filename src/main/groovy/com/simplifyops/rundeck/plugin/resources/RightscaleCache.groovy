@@ -10,6 +10,7 @@ public interface RightscaleCache extends RightscaleAPI {
     int size();
     boolean needsRefresh();
     void setRefreshInterval(int millis);
+    boolean hasResource(String key, String href)
     void updateClouds(Map<String, RightscaleResource> clouds);
     void updateDatacenters(Map<String, RightscaleResource> datacenters);
     void updateDeployments(Map<String, RightscaleResource> deployments);

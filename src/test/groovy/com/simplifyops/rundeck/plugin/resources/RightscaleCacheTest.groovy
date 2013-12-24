@@ -175,6 +175,14 @@ public class RightscaleCacheTest {
         Assert.assertEquals(2,resources.size())
     }
 
+    @Test
+    public void hasResource() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateSshKeys(
+                SshKeyResource.burst(new XmlParser().parseText(XmlData.SSH_KEYS),
+                        'ssh_key', ServerResource.&create))
+        Assert.assertTrue(cache.hasResource('ssh_key', "/api/clouds/926218062/ssh_keys/ABC3518369342DEF"))
+    }
 
     @Test
     public void cachedResourceCollection() {

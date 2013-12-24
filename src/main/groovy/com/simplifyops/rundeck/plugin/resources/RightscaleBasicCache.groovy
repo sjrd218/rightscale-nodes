@@ -98,6 +98,11 @@ class RightscaleBasicCache implements RightscaleCache {
     }
 
     @Override
+    public boolean hasResource(String key, String href) {
+        return resources[key].collection.containsKey(href)
+    }
+
+    @Override
     Map<String, RightscaleResource> getClouds() {
         return getResources('cloud')
     }
@@ -295,7 +300,7 @@ class RightscaleBasicCache implements RightscaleCache {
         }
 
 
-        void putAll(Map<String, RightscaleResource> map) {
+        synchronized void putAll(Map<String, RightscaleResource> map) {
             collection.putAll(map)
             ctime = System.currentTimeMillis()
         }
