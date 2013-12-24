@@ -174,6 +174,7 @@ public class RightscaleNodes implements ResourceModelSource {
                 logger.debug("Loading cache with resources for cloud: ${cloud.attributes['name']}")
                 cache.updateDatacenters(query.getDatacenters(cloud_id))
                 cache.updateInstanceTypes(query.getInstanceTypes(cloud_id))
+
                 cache.updateSubnets(query.getSubnets(cloud_id))
             }
             cachePrimed = true;
@@ -331,11 +332,8 @@ public class RightscaleNodes implements ResourceModelSource {
         logger.debug("DEBUG: refresh() started.")
 
         // load up the cache.
-        try {
-            loadCache()
-        } catch (Exception e) {
-            throw new ResourceModelSourceException("Error while loading cache.", e)
-        }
+       loadCache()
+
 
         /**
          * Generate the nodes.
@@ -398,8 +396,7 @@ public class RightscaleNodes implements ResourceModelSource {
                         + server.links['current_instance'])
                 throw new ResourceModelSourceException(
                         "Failed getting instance for server " + server.links['self'] + ". current_instance: "
-                                + server.links['current_instance']
-                                + "instances:" + api.getInstances(cloud_id))
+                                + server.links['current_instance'])
             }
             // Extra precaution: only process instances that are also in state, operational.
             if ("operational".equalsIgnoreCase(instance.attributes['state'])) {
