@@ -1,6 +1,8 @@
 package com.simplifyops.rundeck.plugin.resources
 
 import com.sun.jersey.api.client.*
+import com.sun.jersey.api.client.config.ClientConfig
+
 import javax.ws.rs.core.MultivaluedMap
 import com.sun.jersey.core.util.MultivaluedMapImpl
 import javax.ws.rs.core.MediaType
@@ -11,7 +13,7 @@ import groovy.xml.MarkupBuilder
 /**
  * Simplified groovy REST utility using Jersey client library.
  * <p>
- * You can configure static defaults to use the static methods, or use use an instance of this class.
+ * You can configure static defaults for use with all instances of this class.
  * </p>
  * <p>Static configuration:</p>
  * <pre>
@@ -19,8 +21,6 @@ import groovy.xml.MarkupBuilder
  * Rest.defaultAccept='application/*+xml; version=1.5'
  * //set other default request headers
  * Rest.defaultHeaders=['Authorization':'Basic '+"${user}:${pass}".toString().bytes.encodeBase64().toString()]
- * //set base URL for requests
- * Rest.baseUrl="http://host/path"
  * //set handler for non 200 responses
  * Rest.failureHandler={response->
  *   die("Request failed: ${response}")
@@ -29,15 +29,6 @@ import groovy.xml.MarkupBuilder
  * Rest.contentTypeFailureHandler={response->
  *   die("ContentType not expected: ${response.type}: ${response}")
  * }
- * </pre>
- * <p>Invocation can be performed statically using the GET and POST methods:</p>
- * <pre>
- * import static Rest.GET
- * import static Rest.POST
- * def response= GET "http://host/path"
- * //or set default base path
- * Rest.baseUrl="http://host/path"
- * response = POST "/subpath","content"
  * </pre>
  * <p>Non-static usage is performed by creating an instance with an absolute or relative URL</p>
  * <pre>
@@ -122,7 +113,7 @@ public class Rest{
 		}
 	}
 
-	static Client client = Client.create()
+	Client client = Client.create()
 	/**
 	 * Default accept header MediaType
 	 */
@@ -131,10 +122,6 @@ public class Rest{
 	 * Map of default request headers
 	 */
 	def static defaultHeaders=[:]
-	/**
-	 * base URL for all requests
-	 */
-	def static baseUrl
 	def static mock
 	/**
 	 * Closure that will be called if the response is not a successful status value. Argument is a ClientResponse object.
@@ -163,26 +150,36 @@ public class Rest{
 	 */
 	def accept=defaultAccept
 	
-	def static addFilter(filter){
+	def addFilter(filter){
 		client.addFilter(filter)
 	}
 	/**
 	 * Print debug output for all requests/responses to the given PrintStream
 	 */
-	def static debug(PrintStream out){
+	def debug(PrintStream out){
 		addFilter(new LoggingFilter(out))
 	}
+    /**
+     * Create a Rest client with baseUrl, path and client config
+     * @param baseUrl
+     * @param path
+     * @param config
+     */
+    public Rest(String baseUrl,String path, ClientConfig config){
+        if(null!=config){
+            client= Client.create(config)
+        }
+        if (baseUrl && !path.startsWith('http')) {
+            resource = client.resource(baseUrl).path(path)
+        } else {
+            resource = client.resource(path)
+        }
+    }
 	/**
-	 * Create a new Rest given the URL path. If the path is an absolute URL, 
-	 * it will be used.  If it is a relative URL and the static baseUrl has been set, it will
-	 * be added relative to the baseUrl.
+	 * Create a new Rest given the URL path.
 	 */
 	public Rest(String path){
-		if(baseUrl && !path.startsWith('http')){
-			resource=client.resource(baseUrl).path(path)
-		}else{
-			resource=client.resource(path)
-		}
+		this(null,path,null)
 	}
 	private Rest(WebResource resource){
 		this.resource=resource
@@ -237,45 +234,6 @@ public class Rest{
 	}
 
 	/**
-	 * POST request to the given relative or absolute URL.
-	 * @param url relative to the baseUrl, or an absolute URL
-	 * @param content any text content, or a closure for building XML content
-	 * @param headers request header map
-	 * @param params request params map
-	 */
-	public static POST(url, content='', headers=[:],params=[:]){
-		new Rest(url).post(content,headers,params)
-	}
-
-	/**
-	 * GET request to the given relative or absolute URL.
-	 * @param url relative to the baseUrl, or an absolute URL
-	 * @param headers request header map
-	 * @param params request params map
-	 */
-	public static GET(url, headers=[:],params=[:]){
-		new Rest(url).get(headers,params)
-	}
-	/**
-	 * PUT request to the given relative or absolute URL.
-	 * @param url relative to the baseUrl, or an absolute URL
-	 * @param content any text content, or a closure for building XML content
-	 * @param headers request header map
-	 * @param params request params map
-	 */
-	public static PUT(url, content='',headers=[:],params=[:]){
-		new Rest(url).put(content,headers,params)
-	}
-	/**
-	 * DELETE request to the given relative or absolute URL.
-	 * @param url relative to the baseUrl, or an absolute URL
-	 * @param headers request header map
-	 * @param params request params map
-	 */
-	public static DELETE(url, headers=[:],params=[:]){
-		new Rest(url).delete(headers,params)
-	}
-	/**
 	 * Return a map containing request header for HTTP Basic authentication
 	 * @param user the username string
 	 * @param pass the password string
@@ -312,7 +270,7 @@ public class Rest{
 	 * @param headers request header map
 	 * @param params request params map
 	 */
-	public get(headers=[:],params=[:]){
+	public ClientResponse get(headers=[:],params=[:]){
 		makeRequest(build(headers,params)){
 			get(ClientResponse.class);
 		}
@@ -323,7 +281,7 @@ public class Rest{
 	 * @param headers request header map
 	 * @param params request params map
 	 */
-	public post(content,headers=[:],params=[:]){
+	public ClientResponse post(content,headers=[:],params=[:]){
 		def value=makeContent(content)
 		makeRequest(build(headers,params)){
 			post(ClientResponse.class,value);

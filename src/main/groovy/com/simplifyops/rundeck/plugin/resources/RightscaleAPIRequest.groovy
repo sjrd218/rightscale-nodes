@@ -259,26 +259,25 @@ class RightscaleAPIRequest implements RightscaleAPI {
         private def authReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "authentication"));
         private def failReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.fail"));
         private def timer = metrics.timer(MetricRegistry.name(RightscaleAPIRequest, 'request.duration'))
+        private ClientFilter clientAuthFilter
+        ClientConfig cc
 
         RestClient(baseUrl) {
             // API defaults
-            Rest.defaultHeaders = ["X-API-VERSION": "1.5"]
             this.baseUrl = baseUrl
-            Rest.baseUrl = this.baseUrl;
 
-            ClientConfig cc = new DefaultClientConfig();
+            cc = new DefaultClientConfig();
             cc.getProperties().put(ClientConfig.PROPERTY_CONNECT_TIMEOUT, timeout);
             cc.getProperties().put(ClientConfig.PROPERTY_READ_TIMEOUT, timeout);
-            Rest.client = Client.create(cc)
-            addSendCookieFilter(Rest.client)
+            clientAuthFilter=makeSendCookieFilter()
         }
 
         /**
-         * Adds a filter to the jersey client that will send all of the stored cookies in each request.
+         * Returns a filter that will send all of the stored cookies in each request.
          * @param client
          */
-        private void addSendCookieFilter(Client client) {
-            client.addFilter(new ClientFilter() {
+        private ClientFilter makeSendCookieFilter() {
+            return new ClientFilter() {
                 @Override
                 public ClientResponse handle(ClientRequest request) throws ClientHandlerException {
                     if (cookies != null) {
@@ -286,7 +285,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
                     }
                     return getNext().handle(request);
                 }
-            });
+            };
         }
 
         /**
@@ -359,7 +358,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
          * @param makeRequest closure which makes the request and returns the response
          * @return the response.XML
          */
-        Node handleRequest(Closure makeRequest){
+        Node handleRequest(href,Closure makeRequest){
             def ClientResponse response = makeRequest()
 
             if (response.status == 403) {
@@ -372,15 +371,34 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
                 }
             }
+            if (response.status == 422) {
+                // unsupported resource type
+                System.out.println("DEBUG: Unsupported resource type: ${href}")
+                logger.debug("Unsupported resource type: ${href}")
+                throw new UnsupportedResourceType("href: ${href}")
+            }
             if (response.status != 200) {
                 failReqCount.inc()
-                throw new RequestException("RightScale request error. " + response)
+                throw new RequestException("RightScale request error: ${href}: " + response)
             }
-            getReqCount.inc()
 
             return response.XML
         }
 
+        /**
+         * Create the Rest object for the given href
+         * @param href
+         * @return
+         */
+        private Rest buildRest(String href) {
+            def request = new Rest(baseUrl, href, cc);
+            request.headers = ["X-API-VERSION": "1.5"]
+            if (debug) {
+                request.addFilter(new LoggingFilter(System.out)); // debug output
+            }
+            request.addFilter(clientAuthFilter); // include cookie headers
+            request
+        }
         /**
          * Get the resource
          * @param href
@@ -392,68 +410,45 @@ class RightscaleAPIRequest implements RightscaleAPI {
             if (!href.endsWith('.xml')) {
                 href= href+'.xml'
             }
-            def time = timer.time()
             def long starttime = System.currentTimeMillis()
             System.out.println("DEBUG: Requesting resource href: ${href}.")
             logger.debug("Requesting resource href: ${href}.")
 
-            /**
-             * Request the servers data as XML
-             */
-            def request = new Rest(href);
+            Rest request = buildRest(href)
 
-            if (debug) {
-                request.addFilter(new LoggingFilter(System.out)); // debug output
-            }
-
-            return handleRequest {
-
-
-                def ClientResponse response = request.get([:], params)
-                if (response.status == 422) {
-                    // unsupported resource type
-                    System.out.println("DEBUG: Unsupported resource type: ${href}")
-                    logger.debug("Unsupported resource type: ${href}")
-                    throw new UnsupportedResourceType("href: ${href}")
+            def response=timer.time{
+                handleRequest(href) {
+                    request.get([:], params)
                 }
-
-                def endtime = System.currentTimeMillis()
-                def duration = (endtime - starttime)
-                System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-                logger.debug("Request succeeded: href ${href}. (duration=${duration})")
-                time.stop()
-                getReqCount.inc()
-                return response
             }
+
+            def endtime = System.currentTimeMillis()
+            def duration = (endtime - starttime)
+            System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
+            logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+
+            getReqCount.inc()
+            return response
         }
 
         Node post(String href, Map params, Map data) {
-            def time = timer.time()
             def long starttime = System.currentTimeMillis()
             System.out.println("DEBUG: Requesting resource href: ${href}.")
             logger.debug("Requesting resource href: ${href}.")
 
-            def request = new Rest(href);
+            def request = buildRest(href)
 
-            if (debug) {
-                request.addFilter(new LoggingFilter(System.out)); // debug output
-            }
-
-            return handleRequest {
-                def ClientResponse response = request.post({}, params, data)
-                if (response.status == 422) {
-                    // unsupported resource type
-                    System.out.println("DEBUG: Unsupported resource type: ${href}")
-                    logger.debug("Unsupported resource type: ${href}")
-                    throw new UnsupportedResourceType("href: ${href}")
+            def response=timer.time{
+                handleRequest(href){
+                    request.post({}, params, data)
                 }
-                time.stop()
-                def endtime = System.currentTimeMillis()
-                def duration = (endtime - starttime)
-                System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-                logger.debug("Request succeeded: href ${href}. (duration=${duration})")
-                return response
             }
+
+            def endtime = System.currentTimeMillis()
+            def duration = (endtime - starttime)
+            System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
+            logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+            return response
         }
     }
 
