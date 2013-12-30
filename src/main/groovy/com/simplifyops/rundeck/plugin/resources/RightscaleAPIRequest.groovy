@@ -23,7 +23,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     def String endpoint
     def boolean debug
 
-    def ApiClient restClient;
+    def ApiClient apiClient;
     def boolean authenticated = false;
 
     def int timeout = 0; // default timeout interval set to infinity.
@@ -39,7 +39,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
         this.account = account
         this.endpoint = endpoint
 
-        restClient = new ApiClient(endpoint)
+        apiClient = new ApiClient(endpoint)
         logger.info("RightscaleAPIRequest instantiated.")
     }
 
@@ -57,7 +57,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     }
 
     public void initialize() {
-        restClient.authenticate()
+        apiClient.authenticate()
     }
 
     /**
@@ -66,7 +66,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getServers() {
-        def Node xml = restClient.get("/api/servers", [view: "instance_detail"])
+        def Node xml = apiClient.get("/api/servers", [view: "instance_detail"])
         def servers = ServerResource.burst(xml, 'server', ServerResource.&create)
         return servers
     }
@@ -78,7 +78,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getInstances(String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/instances", [view: "extended"])
+        def Node xml = apiClient.get("/api/clouds/${cloud_id}/instances", [view: "extended"])
         return InstanceResource.burst(xml, 'instance', InstanceResource.&create)
     }
 
@@ -89,7 +89,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getDeployments() {
         try {
-            def Node xml = restClient.get("/api/deployments", [:])
+            def Node xml = apiClient.get("/api/deployments", [:])
             return DeploymentResource.burst(xml, 'deployment', DeploymentResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: deployments")
@@ -103,7 +103,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getClouds() {
-        def Node xml = restClient.get("/api/clouds", [:])
+        def Node xml = apiClient.get("/api/clouds", [:])
         return CloudResource.burst(xml, 'cloud', CloudResource.&create)
     }
 
@@ -113,7 +113,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getServerTemplates() {
-        def Node xml = restClient.get('/api/server_templates', [:])
+        def Node xml = apiClient.get('/api/server_templates', [:])
         return ServerTemplateResource.burst(xml, 'server_template', ServerTemplateResource.&create)
     }
 
@@ -125,7 +125,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getDatacenters(String cloud_id) {
         try {
-            def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters", [:])
+            def Node xml = apiClient.get("/api/clouds/${cloud_id}/datacenters", [:])
             return DatacenterResource.burst(xml, 'datacenter', DatacenterResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: datacenters")
@@ -140,7 +140,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getSubnets(final String cloud_id) {
         try {
-            def Node xml = restClient.get("/api/clouds/${cloud_id}/subnets", [:])
+            def Node xml = apiClient.get("/api/clouds/${cloud_id}/subnets", [:])
             return SubnetResource.burst(xml, 'subnet', SubnetResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Returning an empty list for unsupported resource type: subnets")
@@ -156,7 +156,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     public Map<String, RightscaleResource> getSshKeys(final String cloud_id) {
 
         try {
-            def Node xml = restClient.get("/api/clouds/${cloud_id}/ssh_keys", [:])
+            def Node xml = apiClient.get("/api/clouds/${cloud_id}/ssh_keys", [:])
             return SshKeyResource.burst(xml, 'ssh_key', SshKeyResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: ssh_keys")
@@ -170,7 +170,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getImages(final String cloud_id) {
-        def Node xml = restClient.get("/api/clouds/${cloud_id}/images", [:])
+        def Node xml = apiClient.get("/api/clouds/${cloud_id}/images", [:])
         return ImageResource.burst(xml, 'image', ImageResource.&create)
     }
     /**
@@ -179,21 +179,20 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public RightscaleResource getImage(final String href) {
-        def Node xml = restClient.get(href, [:])
+        def Node xml = apiClient.get(href, [:])
         return ImageResource.create(xml)
     }
 
     /**
      * Query the Rightscale API for all ResourceInput resources for the specified instance.
-     * @param cloud_id
-     * @param instance_id
+     * @param href link to parent Resource
      * @return List of maps containing name/value pairs.
      */
 
     @Override
     public Map<String, RightscaleResource> getInputs(final String href) {
         try {
-            def Node xml = restClient.get(href, [:])
+            def Node xml = apiClient.get(href, [:])
             return InputResource.burst(xml, 'input', InputResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: inputs")
@@ -209,7 +208,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     @Override
     public Map<String, RightscaleResource> getInstanceTypes(String cloud_id) {
         try {
-            def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types", [:])
+            def Node xml = apiClient.get("/api/clouds/${cloud_id}/instance_types", [:])
             return InstanceTypeResource.burst(xml, 'instance_type', InstanceTypeResource.&create)
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: instance_type")
@@ -223,13 +222,13 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getServerArrays() {
-        def Node xml = restClient.get("/api/server_arrays", [view: "instance_detail"])
+        def Node xml = apiClient.get("/api/server_arrays", [view: "instance_detail"])
         return ServerArrayResource.burst(xml, 'server_array', ServerArrayResource.&create)
     }
 
     @Override
     public Map<String, RightscaleResource> getServerArrayInstances(String server_array_id) {
-        def Node xml = restClient.get("/api/server_arrays/${server_array_id}/current_instances",[:])
+        def Node xml = apiClient.get("/api/server_arrays/${server_array_id}/current_instances",[:])
         return InstanceResource.burst(xml, 'instance', InstanceResource.&create)
     }
 
@@ -239,7 +238,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
      */
     @Override
     public Map<String, RightscaleResource> getTags(final String href) {
-        def xml = restClient.post('/api/tags/by_resource',[:],["resource_hrefs[]": href])
+        def xml = apiClient.post('/api/tags/by_resource',[:],["resource_hrefs[]": href])
         return TagsResource.burst(xml, 'resource_tag', TagsResource.&create)
     }
 
@@ -324,8 +323,16 @@ class RightscaleAPIRequest implements RightscaleAPI {
             form.putSingle("email", email);
             form.putSingle("password", password);
             form.putSingle("account_href", "/api/accounts/${account}");
-            def ClientResponse response = sessionRequest.header("X-API-VERSION", "1.5")
+            def ClientResponse response
+            try {
+                response = sessionRequest.header("X-API-VERSION", "1.5")
                     .type("application/x-www-form-urlencoded").post(ClientResponse.class, form);
+            } catch (ClientHandlerException e) {
+                errorCount.inc()
+                logger.error("Caught a client handling error while authenticating: " + e.getMessage())
+                throw new RequestException(e)
+            }
+
             /**
              * Check the response for http status (eg, 20x)
              */
