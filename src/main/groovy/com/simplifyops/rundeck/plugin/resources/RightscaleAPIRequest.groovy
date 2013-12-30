@@ -23,7 +23,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
     def String endpoint
     def boolean debug
 
-    def RestClient restClient;
+    def ApiClient restClient;
     def boolean authenticated = false;
 
     def int timeout = 0; // default timeout interval set to infinity.
@@ -39,8 +39,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
         this.account = account
         this.endpoint = endpoint
 
-        restClient = new RestClient(endpoint)
-        logger.debug("RightscaleAPIRequest instantiated.")
+        restClient = new ApiClient(endpoint)
+        logger.info("RightscaleAPIRequest instantiated.")
     }
 
     RightscaleAPIRequest(Properties p) {
@@ -92,7 +92,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get("/api/deployments", [:])
             return DeploymentResource.burst(xml, 'deployment', DeploymentResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Return an empty list for unsupported resource type: deployments")
+            logger.info("Return an empty list for unsupported resource type: deployments")
             return [:]
         }
     }
@@ -128,7 +128,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get("/api/clouds/${cloud_id}/datacenters", [:])
             return DatacenterResource.burst(xml, 'datacenter', DatacenterResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Return an empty list for unsupported resource type: datacenters")
+            logger.info("Return an empty list for unsupported resource type: datacenters")
             return [:]
         }
     }
@@ -143,7 +143,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get("/api/clouds/${cloud_id}/subnets", [:])
             return SubnetResource.burst(xml, 'subnet', SubnetResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Returning an empty list for unsupported resource type: subnets")
+            logger.info("Returning an empty list for unsupported resource type: subnets")
             return [:]
         }
     }
@@ -159,7 +159,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get("/api/clouds/${cloud_id}/ssh_keys", [:])
             return SshKeyResource.burst(xml, 'ssh_key', SshKeyResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Return an empty list for unsupported resource type: ssh_keys")
+            logger.info("Return an empty list for unsupported resource type: ssh_keys")
             return [:]
         }
     }
@@ -196,7 +196,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get(href, [:])
             return InputResource.burst(xml, 'input', InputResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Return an empty list for unsupported resource type: inputs")
+            logger.info("Return an empty list for unsupported resource type: inputs")
             return [:]
         }
     }
@@ -212,7 +212,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def Node xml = restClient.get("/api/clouds/${cloud_id}/instance_types", [:])
             return InstanceTypeResource.burst(xml, 'instance_type', InstanceTypeResource.&create)
         } catch (UnsupportedResourceType e) {
-            logger.debug("Return an empty list for unsupported resource type: instance_type")
+            logger.info("Return an empty list for unsupported resource type: instance_type")
             return [:]
         }
     }
@@ -249,20 +249,21 @@ class RightscaleAPIRequest implements RightscaleAPI {
     /**
      * Helper class for making Rightscale API HTTP requests.
      */
-    class RestClient {
+    class ApiClient {
 
         private ArrayList<Object> cookies;
         private String baseUrl
         private long lastAuthentication=0L;
 
-        private def getReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.success"));
-        private def authReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "authentication"));
-        private def failReqCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.fail"));
+        private def errorCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.errors"));
+        private def successCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.success"));
+        private def authenticationCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "authentication"));
+        private def failureCount = metrics.counter(MetricRegistry.name(RightscaleAPIRequest.class, "request.fail"));
         private def timer = metrics.timer(MetricRegistry.name(RightscaleAPIRequest, 'request.duration'))
         private ClientFilter clientAuthFilter
         ClientConfig cc
 
-        RestClient(baseUrl) {
+        ApiClient(baseUrl) {
             // API defaults
             this.baseUrl = baseUrl
 
@@ -292,7 +293,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
          * Login and create a session.
          */
         synchronized void authenticate() {
-            logger.debug("Authenticating ${email}...")
+            logger.info("Authenticating ${email}...")
             //reset cookies
             cookies = new ArrayList<Object>();
             //use a local Jersey client
@@ -334,9 +335,9 @@ class RightscaleAPIRequest implements RightscaleAPI {
                 throw new RequestException("RightScale login error. " + response)
             }
             authenticated=true
-            authReqCount.inc()
+            authenticationCount.inc()
             lastAuthentication=System.currentTimeMillis()
-            logger.debug("Successfully authenticated: ${email}")
+            logger.info("Successfully authenticated: ${email}")
         }
 
         /**
@@ -367,18 +368,18 @@ class RightscaleAPIRequest implements RightscaleAPI {
                     //retry request only if we are now authenticated again
                     response=makeRequest()
                     System.out.println("DEBUG: Reauthenticating to service.")
-                    logger.debug("Reauthenticating to service.")
+                    logger.info("Reauthenticating to service.")
 
                 }
             }
             if (response.status == 422) {
                 // unsupported resource type
                 System.out.println("DEBUG: Unsupported resource type: ${href}")
-                logger.debug("Unsupported resource type: ${href}")
+                logger.info("Unsupported resource type: ${href}")
                 throw new UnsupportedResourceType("href: ${href}")
             }
             if (response.status != 200) {
-                failReqCount.inc()
+                failureCount.inc()
                 throw new RequestException("RightScale request error: ${href}: " + response)
             }
 
@@ -412,10 +413,17 @@ class RightscaleAPIRequest implements RightscaleAPI {
             }
             def long starttime = System.currentTimeMillis()
             System.out.println("DEBUG: Requesting resource href: ${href}.")
-            logger.debug("Requesting resource href: ${href}.")
+            logger.info("Requesting resource href: ${href}.")
 
-            Rest request = buildRest(href)
-
+            Rest request
+            try {
+                request = buildRest(href)
+            } catch (Throwable t) {
+                // TODO: Understand why this can be a Jersey SPI error. Thought it was caused by HTTP timeout.
+                System.out.println("DEBUG: Caught buildRest exception for href ${href}. Throwable type: "+t.getClass().getName())
+                errorCount.inc()
+                throw new RequestException("Error while building a client for href ${href}: " + t.message)
+            }
             def response=timer.time{
                 handleRequest(href) {
                     request.get([:], params)
@@ -425,16 +433,16 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def endtime = System.currentTimeMillis()
             def duration = (endtime - starttime)
             System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-            logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+            logger.info("Request succeeded: href ${href}. (duration=${duration})")
 
-            getReqCount.inc()
+            successCount.inc()
             return response
         }
 
         Node post(String href, Map params, Map data) {
             def long starttime = System.currentTimeMillis()
             System.out.println("DEBUG: Requesting resource href: ${href}.")
-            logger.debug("Requesting resource href: ${href}.")
+            logger.info("Requesting resource href: ${href}.")
 
             def request = buildRest(href)
 
@@ -447,7 +455,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             def endtime = System.currentTimeMillis()
             def duration = (endtime - starttime)
             System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-            logger.debug("Request succeeded: href ${href}. (duration=${duration})")
+            logger.info("Request succeeded: href ${href}. (duration=${duration})")
             return response
         }
     }
