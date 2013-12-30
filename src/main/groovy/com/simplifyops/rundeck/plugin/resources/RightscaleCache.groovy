@@ -9,6 +9,7 @@ public interface RightscaleCache extends RightscaleAPI {
 
     int size();
     boolean needsRefresh();
+    long getLastRefresh();
     void setRefreshInterval(int millis);
     boolean hasResource(String key, String href)
     void updateClouds(Map<String, RightscaleResource> clouds);
@@ -17,6 +18,7 @@ public interface RightscaleCache extends RightscaleAPI {
     void updateImages(Map<String, RightscaleResource> images);
     void updateInputs(Map<String, RightscaleResource> inputs);
     void updateInstances(Map<String, RightscaleResource> instances);
+    Map<String, RightscaleResource> getInstances();
     void updateInstanceTypes(Map<String, RightscaleResource> instanceTypes);
     void updateServerArrayInstances(Map<String, RightscaleResource> instances);
     void updateServerArrays(Map<String, RightscaleResource> serverArrays);
