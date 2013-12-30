@@ -151,30 +151,39 @@ During each refresh, the plugin generates a Node set from the API request data s
 
 
 
-### Cache priming
+### Secondary resources and priming
 
 Rightscale instances are linked to by a number of common resources.
-This basic data is used to prime the cache.
+This basic data is used to prime the cache and load additional resources.
 
-* Clouds
+The cache is bootstrapped by getting:
+* Clouds: Instances will be found in each Cloud.
+
+Addititional resources are retrieved if the Cloud supports them:
+
 * Deployments
+* Images
 * ServerTemplates
 * Datacenters
 * InstanceTypes
+* SshKeys
 * Subnets
 
-Because this data changes infrequently, it is only loaded once. Restart the plugin,
- or change its configuration to completely reload the cache.
+Because much of this data changes infrequently, it is only loaded once. Restart the plugin,
+ or change its configuration to force a reload of the cache.
 
-### Every refresh
+### Primary resources
+
+At every refresh, load the cache with
 
 * Instances
-* SshKeys
-* Images
 * Tags
 * Inputs
 * Servers
 * ServerArrays
+
+This data is considered more apt to change (new instances added, new tags defined)
+and is therefore requested at each refresh interval.
 
 ## Errors
 
@@ -207,15 +216,18 @@ Metrics:
 
 * `RightscaleNodes.nodes.count`: Number of Nodes generated in the last refresh.
 * `RightscaleAPIRequest.authentication`: Count authentication requests made to establish a session.
-* `RightscaleAPIRequest.fail`: Count of failed API requests.
-* `RightscaleAPIRequest.success`: Count of successful API requests.
+* `RightscaleAPIRequest.request.error`: Count of API requests that resulted in errors.
+* `RightscaleAPIRequest.request.fail`: Count of failed API requests.
+* `RightscaleAPIRequest.request.success`: Count of successful API requests.
 * `RightscaleAPIRequest.request.duration`: Timer for API requests.
+* `RightscaleAPIRequest.request.count`: Total count of API requests.
+* `RightscaleAPIRequest.request.skipped`: Count of times refresh was skipped because it was already running.
 * `RightscaleNodes.refresh.rate`: Rate of Number of nodes / Refresh time.
-* `RightscaleNodes.getServerArrayNodes.duration`: Time taken to generate Nodes for the Instances in the ServerArrays
-* `RightscaleNodes.getServerNodes.duration`: Time taken to generate Nodes for the Instances in the Servers
-* `RightscaleNodes.loadCache.cloud.{{cloud_id}}.instances.duration`: Time taken to to load Instance data for the scecified cloud.
-* `RightscaleNodes.loadCache.duration`: Time taken to make API requests and load results in cache.
-* `RightscaleNodes.populateLinkedResources.duration`: Time taken to populate a single Node from linked Instance data.
+* `RightscaleNodes.populateServerArrayNodes.duration`: Time taken to generate Nodes for the Instances in the ServerArrays
+* `RightscaleNodes.populateServerNodes.duration`: Time taken to generate Nodes for the Instances in the Servers
+* `RightscaleNodes.populateInstanceResources.duration`: Time taken to populate a single Node from linked Instance data.
+* `RightscaleNodes.CacheLoader.load.duration`: Time taken to make API requests and load results in cache.
+* `RightscaleNodes.CacheLoader.priming.duration`: Time taken to load primary resources into the cache.
 * `RightscaleNodes.refresh.duration`: Time to refresh the cache and generate Nodes (milliseconds)
 
 File a Github Issue if you have ideas about other useful metrics.
@@ -223,281 +235,185 @@ File a Github Issue if you have ideas about other useful metrics.
 Example metrics output.
 
 ```
+12/30/13 10:10:06 AM ===========================================================
+
 -- Gauges ----------------------------------------------------------------------
 com.simplifyops.rundeck.plugin.resources.RightscaleNodes.nodes.count
-             value = 2
+             value = 4
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.since.lastUpdate
+             value = 5
 
 -- Counters --------------------------------------------------------------------
 com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.authentication
-             count = 2
+             count = 1
+com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.request.errors
+             count = 0
 com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.request.fail
              count = 0
 com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.request.success
-             count = 1338
+             count = 189
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.refresh.request.count
+             count = 2
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.refresh.request.skipped
+             count = 2
 
 -- Meters ----------------------------------------------------------------------
+com.simplifyops.rundeck.plugin.resources.CacheLoader.cache.rate
+             count = 199187
+         mean rate = 195.28 events/second
+     1-minute rate = 2.21 events/second
+     5-minute rate = 106.07 events/second
+    15-minute rate = 112.96 events/second
 com.simplifyops.rundeck.plugin.resources.RightscaleNodes.refresh.rate
-             count = 56
-         mean rate = 0.02 events/second
-     1-minute rate = 0.05 events/second
-     5-minute rate = 0.02 events/second
-    15-minute rate = 0.04 events/second
+             count = 11
+         mean rate = 0.01 events/second
+     1-minute rate = 0.01 events/second
+     5-minute rate = 0.01 events/second
+    15-minute rate = 0.07 events/second
 
 -- Timers ----------------------------------------------------------------------
-com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.request.duration
-             count = 669
-         mean rate = 0.29 calls/second
-     1-minute rate = 0.42 calls/second
-     5-minute rate = 0.23 calls/second
-    15-minute rate = 0.21 calls/second
-               min = 183.48 milliseconds
-               max = 26618.75 milliseconds
-              mean = 1283.01 milliseconds
-            stddev = 3170.33 milliseconds
-            median = 694.65 milliseconds
-              75% <= 832.22 milliseconds
-              95% <= 3170.35 milliseconds
-              98% <= 16311.65 milliseconds
-              99% <= 21012.37 milliseconds
-            99.9% <= 26618.75 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.getServerArrayNodes.duration
-             count = 18
+com.simplifyops.rundeck.plugin.resources.CacheLoader.instance.duration
+             count = 12
          mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 3.72 milliseconds
-               max = 14.58 milliseconds
-              mean = 4.91 milliseconds
-            stddev = 2.47 milliseconds
-            median = 4.25 milliseconds
-              75% <= 4.70 milliseconds
-              95% <= 14.58 milliseconds
-              98% <= 14.58 milliseconds
-              99% <= 14.58 milliseconds
-            99.9% <= 14.58 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.getServerNodes.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 4.48 milliseconds
-               max = 39.23 milliseconds
-              mean = 7.51 milliseconds
-            stddev = 7.94 milliseconds
-            median = 5.72 milliseconds
-              75% <= 6.07 milliseconds
-              95% <= 39.23 milliseconds
-              98% <= 39.23 milliseconds
-              99% <= 39.23 milliseconds
-            99.9% <= 39.23 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.1.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.01 calls/second
-               min = 11274.66 milliseconds
-               max = 27216.13 milliseconds
-              mean = 20036.82 milliseconds
-            stddev = 4309.02 milliseconds
-            median = 20936.50 milliseconds
-              75% <= 23109.48 milliseconds
-              95% <= 27216.13 milliseconds
-              98% <= 27216.13 milliseconds
-              99% <= 27216.13 milliseconds
-            99.9% <= 27216.13 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.2.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 305.69 milliseconds
-               max = 738.70 milliseconds
-              mean = 521.88 milliseconds
-            stddev = 141.24 milliseconds
-            median = 613.40 milliseconds
-              75% <= 614.09 milliseconds
-              95% <= 738.70 milliseconds
-              98% <= 738.70 milliseconds
-              99% <= 738.70 milliseconds
-            99.9% <= 738.70 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.3.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 3153.41 milliseconds
-               max = 4785.20 milliseconds
-              mean = 3737.11 milliseconds
-            stddev = 425.92 milliseconds
-            median = 3695.19 milliseconds
-              75% <= 3933.13 milliseconds
-              95% <= 4785.20 milliseconds
-              98% <= 4785.20 milliseconds
-              99% <= 4785.20 milliseconds
-            99.9% <= 4785.20 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.4.instances.duration
-             count = 19
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.02 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 320.20 milliseconds
-               max = 973.06 milliseconds
-              mean = 586.41 milliseconds
-            stddev = 191.79 milliseconds
-            median = 611.98 milliseconds
-              75% <= 717.29 milliseconds
-              95% <= 973.06 milliseconds
-              98% <= 973.06 milliseconds
-              99% <= 973.06 milliseconds
-            99.9% <= 973.06 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.5.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 320.05 milliseconds
-               max = 1149.56 milliseconds
-              mean = 623.13 milliseconds
-            stddev = 213.16 milliseconds
-            median = 612.89 milliseconds
-              75% <= 648.55 milliseconds
-              95% <= 1149.56 milliseconds
-              98% <= 1149.56 milliseconds
-              99% <= 1149.56 milliseconds
-            99.9% <= 1149.56 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.6.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 308.39 milliseconds
-               max = 970.46 milliseconds
-              mean = 550.77 milliseconds
-            stddev = 173.09 milliseconds
-            median = 606.69 milliseconds
-              75% <= 614.54 milliseconds
-              95% <= 970.46 milliseconds
-              98% <= 970.46 milliseconds
-              99% <= 970.46 milliseconds
-            99.9% <= 970.46 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.7.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 317.27 milliseconds
-               max = 715.16 milliseconds
-              mean = 553.12 milliseconds
-            stddev = 119.48 milliseconds
-            median = 614.22 milliseconds
-              75% <= 614.75 milliseconds
-              95% <= 715.16 milliseconds
-              98% <= 715.16 milliseconds
-              99% <= 715.16 milliseconds
-            99.9% <= 715.16 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.cloud.8.instances.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 317.33 milliseconds
-               max = 1228.66 milliseconds
-              mean = 608.88 milliseconds
-            stddev = 215.26 milliseconds
-            median = 614.49 milliseconds
-              75% <= 618.79 milliseconds
-              95% <= 1228.66 milliseconds
-              98% <= 1228.66 milliseconds
-              99% <= 1228.66 milliseconds
-            99.9% <= 1228.66 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.01 calls/second
-               min = 43981.64 milliseconds
-               max = 60016.49 milliseconds
-              mean = 51572.46 milliseconds
-            stddev = 4828.03 milliseconds
-            median = 52476.96 milliseconds
-              75% <= 54984.33 milliseconds
-              95% <= 60016.49 milliseconds
-              98% <= 60016.49 milliseconds
-              99% <= 60016.49 milliseconds
-            99.9% <= 60016.49 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.instance.duration
-             count = 266
-         mean rate = 0.12 calls/second
-     1-minute rate = 0.18 calls/second
-     5-minute rate = 0.10 calls/second
-    15-minute rate = 0.09 calls/second
-               min = 548.33 milliseconds
-               max = 4047.54 milliseconds
-              mean = 951.78 milliseconds
-            stddev = 331.68 milliseconds
-            median = 898.55 milliseconds
-              75% <= 1036.08 milliseconds
-              95% <= 1500.39 milliseconds
-              98% <= 1869.80 milliseconds
-              99% <= 2080.83 milliseconds
-            99.9% <= 4047.54 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.loadCache.server_array.duration
-             count = 18
-         mean rate = 0.01 calls/second
-     1-minute rate = 0.01 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.02 calls/second
-               min = 760.28 milliseconds
-               max = 1804.78 milliseconds
-              mean = 1083.02 milliseconds
-            stddev = 284.29 milliseconds
-            median = 963.96 milliseconds
-              75% <= 1227.93 milliseconds
-              95% <= 1804.78 milliseconds
-              98% <= 1804.78 milliseconds
-              99% <= 1804.78 milliseconds
-            99.9% <= 1804.78 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.populateLinkedResources.duration
-             count = 36
-         mean rate = 0.02 calls/second
      1-minute rate = 0.03 calls/second
-     5-minute rate = 0.01 calls/second
-    15-minute rate = 0.05 calls/second
-               min = 2.86 milliseconds
-               max = 24.83 milliseconds
-              mean = 4.48 milliseconds
-            stddev = 3.56 milliseconds
-            median = 3.79 milliseconds
-              75% <= 4.61 milliseconds
-              95% <= 8.09 milliseconds
-              98% <= 24.83 milliseconds
-              99% <= 24.83 milliseconds
-            99.9% <= 24.83 milliseconds
-com.simplifyops.rundeck.plugin.resources.RightscaleNodes.refresh.duration
-             count = 18
-         mean rate = 0.01 calls/second
+     5-minute rate = 0.04 calls/second
+    15-minute rate = 0.27 calls/second
+               min = 537.71 milliseconds
+               max = 1070.56 milliseconds
+              mean = 745.03 milliseconds
+            stddev = 187.39 milliseconds
+            median = 695.13 milliseconds
+              75% <= 941.19 milliseconds
+              95% <= 1070.56 milliseconds
+              98% <= 1070.56 milliseconds
+              99% <= 1070.56 milliseconds
+            99.9% <= 1070.56 milliseconds
+com.simplifyops.rundeck.plugin.resources.CacheLoader.load.duration
+             count = 2
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.00 calls/second
+    15-minute rate = 0.00 calls/second
+               min = 136055.60 milliseconds
+               max = 144409.06 milliseconds
+              mean = 140232.33 milliseconds
+            stddev = 5906.79 milliseconds
+            median = 140232.33 milliseconds
+              75% <= 144409.06 milliseconds
+              95% <= 144409.06 milliseconds
+              98% <= 144409.06 milliseconds
+              99% <= 144409.06 milliseconds
+            99.9% <= 144409.06 milliseconds
+com.simplifyops.rundeck.plugin.resources.CacheLoader.priming.duration
+             count = 2
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.00 calls/second
+    15-minute rate = 0.00 calls/second
+               min = 104142.92 milliseconds
+               max = 113552.26 milliseconds
+              mean = 108847.59 milliseconds
+            stddev = 6653.40 milliseconds
+            median = 108847.59 milliseconds
+              75% <= 113552.26 milliseconds
+              95% <= 113552.26 milliseconds
+              98% <= 113552.26 milliseconds
+              99% <= 113552.26 milliseconds
+            99.9% <= 113552.26 milliseconds
+com.simplifyops.rundeck.plugin.resources.CacheLoader.server_array.duration
+             count = 3
+         mean rate = 0.00 calls/second
      1-minute rate = 0.01 calls/second
      5-minute rate = 0.01 calls/second
-    15-minute rate = 0.01 calls/second
-               min = 43990.15 milliseconds
-               max = 60029.05 milliseconds
-              mean = 51585.44 milliseconds
-            stddev = 4830.74 milliseconds
-            median = 52486.97 milliseconds
-              75% <= 55006.76 milliseconds
-              95% <= 60029.05 milliseconds
-              98% <= 60029.05 milliseconds
-              99% <= 60029.05 milliseconds
-            99.9% <= 60029.05 milliseconds
+    15-minute rate = 0.07 calls/second
+               min = 847.85 milliseconds
+               max = 1228.39 milliseconds
+              mean = 1087.83 milliseconds
+            stddev = 208.85 milliseconds
+            median = 1187.26 milliseconds
+              75% <= 1228.39 milliseconds
+              95% <= 1228.39 milliseconds
+              98% <= 1228.39 milliseconds
+              99% <= 1228.39 milliseconds
+            99.9% <= 1228.39 milliseconds
+com.simplifyops.rundeck.plugin.resources.RightscaleAPIRequest.request.duration
+             count = 216
+         mean rate = 0.21 calls/second
+     1-minute rate = 0.58 calls/second
+     5-minute rate = 0.29 calls/second
+    15-minute rate = 0.53 calls/second
+               min = 149.41 milliseconds
+               max = 110740.62 milliseconds
+              mean = 6052.95 milliseconds
+            stddev = 17643.47 milliseconds
+            median = 944.63 milliseconds
+              75% <= 1340.09 milliseconds
+              95% <= 48440.38 milliseconds
+              98% <= 81799.41 milliseconds
+              99% <= 99335.35 milliseconds
+            99.9% <= 110740.62 milliseconds
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.populateInstanceResources.duration
+             count = 8
+         mean rate = 0.01 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.05 calls/second
+    15-minute rate = 0.31 calls/second
+               min = 8.35 milliseconds
+               max = 32.35 milliseconds
+              mean = 12.24 milliseconds
+            stddev = 8.18 milliseconds
+            median = 9.24 milliseconds
+              75% <= 10.87 milliseconds
+              95% <= 32.35 milliseconds
+              98% <= 32.35 milliseconds
+              99% <= 32.35 milliseconds
+            99.9% <= 32.35 milliseconds
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.populateServerArrayNodes.duration
+             count = 2
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.01 calls/second
+    15-minute rate = 0.08 calls/second
+               min = 10.11 milliseconds
+               max = 20.70 milliseconds
+              mean = 15.40 milliseconds
+            stddev = 7.49 milliseconds
+            median = 15.40 milliseconds
+              75% <= 20.70 milliseconds
+              95% <= 20.70 milliseconds
+              98% <= 20.70 milliseconds
+              99% <= 20.70 milliseconds
+            99.9% <= 20.70 milliseconds
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.populateServerNodes.duration
+             count = 2
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.01 calls/second
+    15-minute rate = 0.08 calls/second
+               min = 28.04 milliseconds
+               max = 71.49 milliseconds
+              mean = 49.77 milliseconds
+            stddev = 30.73 milliseconds
+            median = 49.77 milliseconds
+              75% <= 71.49 milliseconds
+              95% <= 71.49 milliseconds
+              98% <= 71.49 milliseconds
+              99% <= 71.49 milliseconds
+            99.9% <= 71.49 milliseconds
+com.simplifyops.rundeck.plugin.resources.RightscaleNodes.refresh.duration
+             count = 2
+         mean rate = 0.00 calls/second
+     1-minute rate = 0.00 calls/second
+     5-minute rate = 0.00 calls/second
+    15-minute rate = 0.00 calls/second
+               min = 136162.22 milliseconds
+               max = 144448.19 milliseconds
+              mean = 140305.20 milliseconds
+            stddev = 5859.06 milliseconds
+            median = 140305.20 milliseconds
+              75% <= 144448.19 milliseconds
+              95% <= 144448.19 milliseconds
+              98% <= 144448.19 milliseconds
+              99% <= 144448.19 milliseconds
+            99.9% <= 144448.19 milliseconds
 ```
