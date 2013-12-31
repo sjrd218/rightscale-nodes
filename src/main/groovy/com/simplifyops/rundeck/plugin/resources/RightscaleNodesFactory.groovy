@@ -60,7 +60,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             .property(PropertyUtil.string(ACCOUNT, "Account", "RightScale Account", true, null))
             .property(PropertyUtil.string(ENDPOINT, "Endpoint", "RightScale  API Endpoint URL. Must support API v1.5 (default: https://us-3.rightscale.com).", false, "https://us-3.rightscale.com"))
             .property(PropertyUtil.integer(REFRESH_INTERVAL, "Refresh Interval",
-            "Minimum time in seconds between API requests to RightScale (default: 60).", false, "60"))
+            "Minimum time in seconds between API requests to RightScale (default: 300).", false, "300"))
             .property(PropertyUtil.string(USERNAME, "Default Node Username", "Username for remote command execution.", true, null))
             .property(PropertyUtil.string(INPUT_PATT, "Input pattern",
             "Regular expression used to match resource inputs (default: .*).", false, ".*"))
@@ -71,7 +71,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             false, "false"))
             .property(PropertyUtil.integer(HTTP_TIMEOUT, "HTTP timeout",
             "Timeout for HTTP connection and read requests (time in milliseconds).",
-            false, "30000"))
+            false, "3000"))
             .property(PropertyUtil.bool(HTTP_LOG, "HTTP request logging",
             "Print debug HTTP request info and the content of the response to service.log ",
             false, "false"))
