@@ -3,14 +3,13 @@ package com.simplifyops.rundeck.plugin.resources
 import com.codahale.metrics.ConsoleReporter
 import com.codahale.metrics.Gauge
 import com.codahale.metrics.Meter
+import com.codahale.metrics.MetricRegistry
 import com.dtolabs.rundeck.core.common.INodeSet
 import com.dtolabs.rundeck.core.common.NodeEntryImpl
 import com.dtolabs.rundeck.core.common.NodeSetImpl
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException
 import com.dtolabs.rundeck.core.resources.ResourceModelSource
 import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
-import com.codahale.metrics.MetricRegistry
-import groovyx.gpars.GParsPool
 import org.apache.log4j.Logger
 
 import java.util.concurrent.TimeUnit
@@ -35,7 +34,8 @@ public class RightscaleNodes implements ResourceModelSource {
     private boolean initialized = false
 
     private Thread refreshThread
-    private boolean cachePrimed = false
+
+    private long lastRefreshDuration = 0L
 
     private MetricRegistry metrics = RightscaleNodesFactory.metrics
 
@@ -145,6 +145,15 @@ public class RightscaleNodes implements ResourceModelSource {
                 });
             }
 
+            if (!metrics.getGauges().containsKey(MetricRegistry.name(RightscaleNodes.class, "refresh.last.duration"))) {
+                metrics.register(MetricRegistry.name(RightscaleNodes.class, "refresh.last.duration"), new Gauge<Integer>() {
+                    @Override
+                    public Integer getValue() {
+                        return lastRefreshDuration
+                    }
+                });
+            }
+
             if (configuration.containsKey(RightscaleNodesFactory.METRICS_INTVERVAL)) {
                 final ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
                         .convertRatesTo(TimeUnit.SECONDS)
@@ -248,7 +257,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     INodeSet refresh() {
         def long starttime = System.currentTimeMillis()
-        def timer = refreshDuration.time()
+        def refreshDuration = refreshDuration.time()
         refreshRate.mark()
         System.out.println("DEBUG: refresh() started.")
         logger.info("DEBUG: refresh() started.")
@@ -265,11 +274,11 @@ public class RightscaleNodes implements ResourceModelSource {
         // Generate Nodes from Instances launched by ServerArrays.
         nodes.putNodes(populateServerArrayNodes(cache))
 
-        def duration = (System.currentTimeMillis() - starttime)
-        System.println("DEBUG: refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${duration})")
-        logger.info("refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${duration})")
+        lastRefreshDuration = (System.currentTimeMillis() - starttime)
+        System.println("DEBUG: refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${lastRefreshDuration})")
+        logger.info("refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${lastRefreshDuration})")
 
-        timer.stop()
+        refreshDuration.stop()
         refreshRate.mark(nodes.getNodes().size())
         refreshCount.inc()
 
@@ -461,14 +470,14 @@ public class RightscaleNodes implements ResourceModelSource {
                     break
                 case "inputs":
                     def inputs = api.getInputs(instance.links['inputs'])
-                    inputs.values().each {
-                        if (it.attributes['name'].matches(configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))) {
-                            it.populate(newNode)
-                            logger.info("Setting node attribute for input: ${it.attributes['name']}")
-                            System.out.println("DEBUG: Setting node attribute for input: ${it.attributes['name']}")
+                    inputs.values().each { input ->
+                        if (input.attributes['name'].matches(configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))) {
+                            input.populate(newNode)
+                            logger.info("Setting node attribute for input: ${input.attributes['name']}")
+                            System.out.println("DEBUG: Setting node attribute for input: ${input.attributes['name']}")
                         } else {
-                            logger.info("Ignored input ${it.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
-                            System.out.println("DEBUG: Ignored input ${it.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
+                            logger.info("Ignored input ${input.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
+                            System.out.println("DEBUG: Ignored input ${input.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
                         }
                     }
                     break;
@@ -501,7 +510,7 @@ public class RightscaleNodes implements ResourceModelSource {
                 if (name.matches(configuration.getProperty(RightscaleNodesFactory.TAG_PATT))) {
 
                     /**
-                     * Experiment: Generate an attribute if the tag contains an equal sign.
+                     * Generate an attribute if the tag contains an equal sign.
                      */
                     if (Boolean.parseBoolean(configuration.getProperty(RightscaleNodesFactory.TAG_ATTR)) && tag.hasAttributeForm(name)) {
                         System.out.println("DEBUG: mapping tag to node attribute: ${name}.")
