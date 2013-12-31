@@ -200,7 +200,10 @@ class CacheLoader_v2 extends CacheLoader {
         loadPrimary(cache, query)
 
 
-        if (!cachedSecondary) {
+        if (cachedSecondary) {
+            logger.info("Secondary resources already cached.")
+            println("DEBUG: Secondary resources already cached.")
+        } else {
             try {
                 loadSecondary(cache, query)
             } catch (Exception e) {
@@ -326,7 +329,6 @@ class CacheLoader_v2 extends CacheLoader {
             )
         }
         def clouds = cache.getClouds().values()
-
         GParsPool.withPool {
             clouds.eachParallel { cloud ->
                 def cloud_id = cloud.getId()
@@ -344,6 +346,7 @@ class CacheLoader_v2 extends CacheLoader {
                 }
             }
         }
+
         cachedSecondary = true;
         logger.info("loadCache() Secondary resources cached")
         System.out.println("DEBUG: loadCache() Secondary resources cached")

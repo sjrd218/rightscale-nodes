@@ -31,6 +31,8 @@ public class RightscaleNodes implements ResourceModelSource {
 
     private RightscaleCache cache;
 
+    private CacheLoader loader;
+
     private boolean initialized = false
 
     private Thread refreshThread
@@ -66,6 +68,8 @@ public class RightscaleNodes implements ResourceModelSource {
         this.configuration = configuration
         this.query = api
         this.cache = cache
+
+        this.loader = CacheLoader.create(CacheLoader.STRATEGY_V2)
 
         logger.info("DEBUG: New RightscaleNodes object created.")
     }
@@ -171,7 +175,6 @@ public class RightscaleNodes implements ResourceModelSource {
      * Populate the cache from query data.
      */
     void loadCache() {
-        def loader = CacheLoader.create(CacheLoader.STRATEGY_V2)
         loader.load(cache, query)
     }
 
