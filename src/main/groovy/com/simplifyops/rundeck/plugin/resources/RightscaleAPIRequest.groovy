@@ -368,7 +368,10 @@ class RightscaleAPIRequest implements RightscaleAPI {
          */
         Node handleRequest(href,Closure makeRequest){
             def ClientResponse response = makeRequest()
-
+            if (response.status == 500) {
+                errorCount.inc()
+                throw new RequestException("RightScale server error: ${href}: " + response)
+            }
             if (response.status == 403) {
                 //authenticate if not re-authenticated in the last 30 seconds
                 if(reauthenticate(30*1000)){
