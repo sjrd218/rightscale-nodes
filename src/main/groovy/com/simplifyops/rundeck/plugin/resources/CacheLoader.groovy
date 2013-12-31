@@ -269,8 +269,10 @@ class CacheLoader_v2 extends CacheLoader {
 
                         {
                             // Get the Inputs and update the cache with them.
-                            System.out.println("DEBUG: Query inputs, ${instance.links['inputs']} for instance: ${instance.links['self']}.")
-                            cache.updateInputs(query.getInputs(instance.links['inputs']))
+                            System.out.println("DEBUG: Query inputs for instance: ${instance.links['self']}.")
+                            def inputs = query.getInputs(instance.links['inputs'])
+                            cache.updateInputs(inputs)
+                            System.out.println("DEBUG: Found ${inputs.size()} inputs for instance: ${instance.links['self']}.")
 
                         },
                         {
@@ -279,7 +281,6 @@ class CacheLoader_v2 extends CacheLoader {
                             def linkedTags = query.getTags(instance.links['self']).values()
                             System.out.println("DEBUG: Query result found ${linkedTags.size()} tags for instance ${instance.links['self']}.")
                             linkedTags.each { tag ->
-                                System.out.println("DEBUG: Caching tags: \"" + tag.attributes['tags'] + "\" for instance: " + instance.attributes['name'])
                                 tags.put(instance.links['self'], tag)
                             }
                         }
@@ -302,7 +303,7 @@ class CacheLoader_v2 extends CacheLoader {
 
         System.out.println("DEBUG: Querying instances for ${serverArrays.size()} server arrays.")
         logger.info("Querying instances for ${serverArrays.size()} server arrays.")
-        def severArrayTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'server_array.duration'))
+        def severArrayTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'server_array.instances.duration'))
 
         GParsPool.withPool {
             serverArrays.eachParallel {

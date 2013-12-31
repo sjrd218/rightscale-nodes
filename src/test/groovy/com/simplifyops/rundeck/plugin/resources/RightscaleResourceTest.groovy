@@ -240,6 +240,7 @@ public class RightscaleResourceTest {
         Assert.assertTrue(newNode.getTags().contains('name_767376035'))
     }
 
+
     @Test
     public void serverTemplate() {
         def xml = new XmlParser().parseText(XmlData.SERVER_TEMPLATES)

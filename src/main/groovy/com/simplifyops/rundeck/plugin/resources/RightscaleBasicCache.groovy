@@ -70,7 +70,7 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     public int size() {
-        return resources.inject(0){ count, k, v -> count+ v.size() }
+        return resources.inject(0) { count, k, v -> count + v.size() }
     }
 
     @Override
@@ -165,9 +165,22 @@ class RightscaleBasicCache implements RightscaleCache {
         return getResources('inputs')
     }
 
+    /**
+     * Get the Inputs that have the specified parent link relationship.
+     * @param href the parent href. eg /api/clouds/366783326/instances/ABC135655295DEF/inputs
+     * @return
+     */
     @Override
     Map<String, RightscaleResource> getInputs(String href) {
-        return getResources('inputs')
+        if (null == href) {
+            println("DEBUG: getInputs() no href specified so returning all inputs.")
+            return getResources('inputs')
+        }
+        def Map<String, RightscaleResource> inputs = [:]
+        getResources('inputs').values().findAll {href.equals(it.links['parent'])}.each {
+            inputs.put(it.links['self'], it)
+        }
+        return inputs
     }
 
     @Override
@@ -212,7 +225,16 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     public Map<String, RightscaleResource> getServerArrayInstances(String server_array_id) {
-        return getResources('server_array_instance')
+        def parent_href = "/api/server_arrays/" + server_array_id
+        Map<String, RightscaleResource> instances = [:]
+        def matched = getResources('server_array_instance').values().findAll {
+            parent_href.equals(it.links['parent'])
+        }
+        println("DEBUG: Found ${matched.size()} instances with server_array parent: ${parent_href}")
+        matched.each {
+            instances.put(it.links['self'], it)
+        }
+        return instances
     }
 
     @Override
@@ -262,7 +284,16 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     Map<String, RightscaleResource> getTags(String href) {
-        return getResources('tag')
+        def Map<String, RightscaleResource> tags = [:]
+        if (null == href) {
+            println("DEBUG: getTags() No href specified so returning all tags")
+            return getResources('tag')
+        }
+        if (getResources('tag').containsKey(href)) {
+            def tag = getResources('tag').get(href)
+            tags.put(href, tag)
+        }
+        return tags
     }
 
     @Override
@@ -283,7 +314,7 @@ class RightscaleBasicCache implements RightscaleCache {
         }
 
         void setInterval(int millis) {
-            refreshInterval=millis
+            refreshInterval = millis
         }
 
         public Map<String, RightscaleResource> toMap() {

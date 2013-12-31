@@ -82,7 +82,12 @@ class RightscaleResource {
         def results = [:]
         xmlNode[key].each {
             def RightscaleResource r = builder(it)
-            results[r.links['self']] = r
+            if (r.links.containsKey('self')) {
+                results[r.links['self']] = r
+
+            } else {
+                println("WARN: Skipping ${key} resource that does not have a link to self.")
+            }
         }
         return results
     }
@@ -241,7 +246,6 @@ class InstanceResource extends RightscaleResource {
     void populate(NodeEntryImpl node) {
         super.populate(node)
         node.setHostname(attributes['public_ip_address']) // TODO: Convention agreement.
-        System.out.println("DEBUG: Set ${node.getNodename()}.hostname="+attributes['public_ip_address'])
     }
 }
 
@@ -371,10 +375,9 @@ class InputResource extends RightscaleResource {
     }
 
     InputResource(Node xmlNode) {
-        this()
-        attributes['name'] = xmlNode.name.text()
+        super(xmlNode)
+        setPrefix('inputs')
         attributes['value'] = xmlNode.value.text()
-        links['self'] = '/dummy/inputs/' + attributes['name']
     }
 
     static InputResource create(Node xmlNode) {
@@ -384,9 +387,9 @@ class InputResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         // Replace slashes with dots.
-        def attrName = attributes['name'].replace('/', '.')
+        def attrName = generateAttributeName(attributes['name'].replace('/', '.'))
         // set the node attribute.
-        node.setAttribute(generateAttributeName(attrName), attributes['value'])
+        node.setAttribute(attrName, attributes['value'])
     }
 }
 

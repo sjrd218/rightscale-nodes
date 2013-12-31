@@ -162,18 +162,35 @@ static def IMAGES = '''
     static def INPUTS = '''
     <inputs>
       <input>
+        <!-- Inputs don't have self or parent links but we are creating them to reference the parent instance. -->
+        <links>
+          <link rel="parent" href="/api/clouds/929741027/instances/ABC3511502537DEF/inputs"/>
+          <link rel="self" href="/api/clouds/926218062/instances/ABC2004049895DEF/dummy/inputs/input_definition_3228327932"/>
+        </links>
         <value>text:</value>
         <name>input_definition_3228327932</name>
       </input>
       <input>
+        <links>
+          <link rel="parent" href="/api/clouds/926218062/instances/ABC2004049895DEF"/>
+          <link rel="self" href="/api/clouds/926218062/instances/ABC2004049895DEF/dummy/inputs/input_definition_1373183366"/>
+        </links>
         <value>text:</value>
         <name>input_definition_1373183366</name>
       </input>
       <input>
+        <links>
+          <link rel="parent" href="/api/clouds/926218062/instances/ABC2004049895DEF"/>
+          <link rel="self" href="/api/clouds/926218062/instances/ABC2004049895DEF/dummy/inputs/rs_utils/process_match_list"/>
+        </links>
         <value>text:ssh/ssh* cron/cron*</value>
         <name>rs_utils/process_match_list</name>
       </input>
       <input>
+         <links>
+          <link rel="parent" href="/api/clouds/926218062/instances/ABC2004049895DEF"/>
+          <link rel="self" href="/api/clouds/926218062/instances/ABC2004049895DEF/dummy/inputs/rs_utils/private_ssh_key"/>
+        </links>
         <value>ignore:$ignore</value>
         <name>rs_utils/private_ssh_key</name>
       </input>
@@ -627,7 +644,7 @@ static def SERVER_ARRAYS = '''
           <action rel="unlock"/>
         </actions>
         <created_at>2013/12/12 16:05:45 +0000</created_at>
-        <name>RightScale Linux Server RL 5.7 #5</name>
+        <name>Array 1 #5</name>
         <locked>false</locked>
         <pricing_type>fixed</pricing_type>
         <public_ip_addresses>
@@ -640,6 +657,41 @@ static def SERVER_ARRAYS = '''
           <link rel="server_template" href="/api/server_templates/322789003"/>
           <link rel="multi_cloud_image" href="/api/multi_cloud_images/358557003"/>
           <link rel="parent" href="/api/server_arrays/1"/>
+          <link rel="volume_attachments" href="/api/clouds/3/instances/6S5099DHD3JAT/volume_attachments"/>
+          <link rel="inputs" href="/api/clouds/3/instances/6S5099DHD3JAT/inputs"/>
+          <link rel="monitoring_metrics" href="/api/clouds/3/instances/6S5099DHD3JAT/monitoring_metrics"/>
+          <link rel="alerts" href="/api/clouds/3/instances/6S5099DHD3JAT/alerts"/>
+        </links>
+      </instance>
+
+     <instance>
+        <private_ip_addresses>
+          <private_ip_address>10.170.250.134</private_ip_address>
+        </private_ip_addresses>
+        <resource_uid>i-ac4193f1</resource_uid>
+        <updated_at>2013/12/12 16:09:04 +0000</updated_at>
+        <state>operational</state>
+        <actions>
+          <action rel="terminate"/>
+          <action rel="reboot"/>
+          <action rel="run_executable"/>
+          <action rel="lock"/>
+          <action rel="unlock"/>
+        </actions>
+        <created_at>2013/12/12 16:05:45 +0000</created_at>
+        <name>Array 2 #6</name>
+        <locked>false</locked>
+        <pricing_type>fixed</pricing_type>
+        <public_ip_addresses>
+          <public_ip_address>54.219.192.224</public_ip_address>
+        </public_ip_addresses>
+        <links>
+          <link rel="self" href="/api/clouds/3/instances/6S5099DHD3ABC"/>
+          <link rel="cloud" href="/api/clouds/3"/>
+          <link rel="deployment" href="/api/deployments/439858003"/>
+          <link rel="server_template" href="/api/server_templates/322789003"/>
+          <link rel="multi_cloud_image" href="/api/multi_cloud_images/358557003"/>
+          <link rel="parent" href="/api/server_arrays/2"/>
           <link rel="volume_attachments" href="/api/clouds/3/instances/6S5099DHD3JAT/volume_attachments"/>
           <link rel="inputs" href="/api/clouds/3/instances/6S5099DHD3JAT/inputs"/>
           <link rel="monitoring_metrics" href="/api/clouds/3/instances/6S5099DHD3JAT/monitoring_metrics"/>

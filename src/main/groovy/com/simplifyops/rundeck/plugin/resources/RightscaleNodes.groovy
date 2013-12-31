@@ -382,6 +382,7 @@ public class RightscaleNodes implements ResourceModelSource {
         serverArrays.each { serverArray ->
             def server_array_id = serverArray.getId()
             logger.info("Retrieving instances for array: " + serverArray.attributes['name'])
+            println("DEBUG: Retrieving instances for array: " + serverArray.attributes['name'])
             /**
              * Get the Instances for this array
              */
@@ -395,8 +396,8 @@ public class RightscaleNodes implements ResourceModelSource {
                 /**
                  * Populate the Node entry with the instance data.
                  */
-                System.out.println("DEBUG: Creating node for instance: ${instance.attributes['name']}")
-                logger.info("Creating node for ${serverArray.attributes['name']} server array instance: ${instance.attributes['name']}")
+                System.out.println("DEBUG: Creating node for array, ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
+                logger.info("Creating node for array, ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
 
                 def NodeEntryImpl newNode = createNode(instance.attributes['name'])
 
@@ -442,7 +443,7 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param newNode
      */
     void populateInstanceResources(RightscaleAPI api, InstanceResource instance, NodeEntryImpl newNode) {
-        System.out.println("DEBUG: Populating node with instance data from ${instance.links['self']}.")
+        System.out.println("DEBUG: Populating node for instance: ${instance.links['self']}.")
 
         def long starttime = System.currentTimeMillis()
         def timer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'populateInstanceResources.duration')).time()
@@ -504,7 +505,7 @@ public class RightscaleNodes implements ResourceModelSource {
                     break
             }
         }
-        System.out.println("DEBUG: populating node tags for instance: " + instance.links['self'])
+        System.out.println("DEBUG: Populating Tags for instance: " + instance.links['self'])
         logger.info("retrieving tags for instance: " + instance.links['self'])
         def tags = api.getTags(instance.links['self'])
         tags.values().each { TagsResource tag ->

@@ -15,7 +15,7 @@ public class RightscaleNodesTest {
      * Populate the cache with test data.
      * @param cache
      */
-    void initializeCache(RightscaleBasicCache cache) {
+    private void initializeCache(RightscaleBasicCache cache) {
         cache.updateClouds(
                 CloudResource.burst(new XmlParser().parseText(XmlData.CLOUDS),
                         'cloud', CloudResource.&create))
@@ -52,6 +52,9 @@ public class RightscaleNodesTest {
         cache.updateSubnets(
                 SubnetResource.burst(new XmlParser().parseText(XmlData.SUBNETS),
                         'subnet', SubnetResource.&create))
+        cache.updateTags(
+                TagsResource.burst(new XmlParser().parseText(XmlData.TAGS),
+                        'tag', TagsResource.&create))
     }
 
 
@@ -147,6 +150,7 @@ public class RightscaleNodesTest {
         // image
         Assert.assertEquals("resource_machine_2329921984",node1Attrs['image.resource_uid'])
         Assert.assertEquals("machine",node1Attrs['image.image_type'])
+
         // input
         Assert.assertEquals("attrs"+node1Attrs,"text:",node1Attrs['inputs.input_definition_3228327932'])
 

@@ -146,6 +146,16 @@ public class RightscaleCacheTest {
     }
 
     @Test
+    public void getServerArrayInstances() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateServerArrayInstances(
+                InstanceResource.burst(new XmlParser().parseText(XmlData.SERVER_ARRAY_INSTANCES),
+                        'instance', InstanceResource.&create))
+        def instances = cache.getServerArrayInstances("1")
+        Assert.assertEquals(1, instances.size())
+    }
+
+    @Test
     public void updateServerTemplates() {
         def RightscaleBasicCache cache = new RightscaleBasicCache()
         cache.updateServerTemplates(
@@ -173,6 +183,19 @@ public class RightscaleCacheTest {
                         'ssh_key', ServerResource.&create))
         def resources = cache.getSshKeys()
         Assert.assertEquals(2,resources.size())
+    }
+
+    @Test
+    public void updateTags() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateTags(
+                TagsResource.burst(new XmlParser().parseText(XmlData.TAGS),
+                        'resource_tag', TagsResource.&create))
+        def resources = cache.getTags()
+        Assert.assertEquals(2,resources.size())
+
+        Assert.assertEquals(1,cache.getTags("/api/servers/10").size())
+
     }
 
     @Test
@@ -214,4 +237,5 @@ public class RightscaleCacheTest {
 
 
     }
+
 }

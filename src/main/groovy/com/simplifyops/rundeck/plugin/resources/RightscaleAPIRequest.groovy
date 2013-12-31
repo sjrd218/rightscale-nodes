@@ -185,6 +185,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
     /**
      * Query the Rightscale API for all ResourceInput resources for the specified instance.
+     * Generates two links. One to parent and one to self. The parent is specified as a parameter
+     * while the self link is generated.
      * @param href link to parent Resource
      * @return List of maps containing name/value pairs.
      */
@@ -193,7 +195,18 @@ class RightscaleAPIRequest implements RightscaleAPI {
     public Map<String, RightscaleResource> getInputs(final String href) {
         try {
             def Node xml = apiClient.get(href, [:])
-            return InputResource.burst(xml, 'input', InputResource.&create)
+            def Map<String, RightscaleResource> inputs =  InputResource.burst(xml, 'input', {
+                def input = InputResource.create(it)
+                /**
+                 * Manufacture a link to self with an href that compounds the parent and the input name.
+                 */
+                def href_self = href + "/" + input.attributes['name']
+                input.links['parent'] = href
+                input.links['self'] = href_self
+
+                input
+            })
+            return inputs
         } catch (UnsupportedResourceType e) {
             logger.info("Return an empty list for unsupported resource type: inputs")
             return [:]
