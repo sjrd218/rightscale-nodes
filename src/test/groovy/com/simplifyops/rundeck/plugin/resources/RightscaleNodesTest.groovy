@@ -1,8 +1,6 @@
 package com.simplifyops.rundeck.plugin.resources
 
 import com.dtolabs.rundeck.core.common.INodeEntry
-import com.dtolabs.rundeck.core.common.NodeEntryImpl
-import com.dtolabs.rundeck.core.common.NodeSetImpl
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException
 import org.junit.Assert;
 import org.junit.Test;
@@ -111,7 +109,7 @@ public class RightscaleNodesTest {
         initializeCache(cache)
         def rightscaleNodes = new RightscaleNodes(createConfigProperties())
 
-        def nodeSet =  rightscaleNodes.getServerNodes(cache)
+        def nodeSet =  rightscaleNodes.populateServerNodes(cache)
 
         Assert.assertEquals(2,nodeSet.getNodes().size())
         def nodenames = nodeSet.getNodeNames()
@@ -167,7 +165,7 @@ public class RightscaleNodesTest {
         initializeCache(cache)
         def rightscaleNodes = new RightscaleNodes(createConfigProperties())
 
-        def nodeSet =  rightscaleNodes.getServerArrayNodes(cache)
+        def nodeSet =  rightscaleNodes.populateServerArrayNodes(cache)
 
         Assert.assertEquals(0,nodeSet.getNodes().size())
 

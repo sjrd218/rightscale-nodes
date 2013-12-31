@@ -237,7 +237,7 @@ public class RightscaleResourceTest {
         Assert.assertEquals("enabled", newNode.getAttribute("server_array.state"))
         Assert.assertEquals("0", newNode.getAttribute("server_array.instances_count"))
         Assert.assertEquals(1,newNode.getTags().size())
-        Assert.assertTrue(newNode.getTags().contains('array=name_767376035'))
+        Assert.assertTrue(newNode.getTags().contains('name_767376035'))
     }
 
     @Test

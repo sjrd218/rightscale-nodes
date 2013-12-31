@@ -302,8 +302,7 @@ class ServerArrayResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        def tag = "array=" + attributes['name']
-        setTag(tag, node)
+        setTag(attributes['name'], node)
     }
 }
 
