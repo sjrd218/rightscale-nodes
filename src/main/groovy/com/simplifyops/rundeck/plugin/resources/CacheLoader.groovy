@@ -229,6 +229,8 @@ class CacheLoader_v2 extends CacheLoader {
      * @param query
      */
     private void loadPrimary(RightscaleCache cache, RightscaleAPI query) {
+        def loadTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, "primary.duration")).time()
+
         /**
          * Get the Clouds.
          */
@@ -265,11 +267,8 @@ class CacheLoader_v2 extends CacheLoader {
                         {
                             // Get the Inputs and update the cache with them.
                             System.out.println("DEBUG: Query inputs, ${instance.links['inputs']} for instance: ${instance.links['self']}.")
-                            if (!cache.hasResource('inputs', instance.links['inputs'])) {
-                                cache.updateInputs(query.getInputs(instance.links['inputs']))
-                            } else {
-                                System.out.println("DEBUG: Already cached inputs, ${instance.links['inputs']}.")
-                            }
+                            cache.updateInputs(query.getInputs(instance.links['inputs']))
+
                         },
                         {
                             // Get the Tags.
@@ -313,12 +312,13 @@ class CacheLoader_v2 extends CacheLoader {
             }
         }
         cachedPrimary = true
+        loadTimer.stop()
     }
 
     private void loadSecondary(RightscaleCache cache, RightscaleAPI query) {
         logger.info("loadCache() Loading secondary resources into cache")
         System.out.println("DEBUG: loadCache() Loading secondary resources into cache")
-        def t = metrics.timer(MetricRegistry.name(CacheLoader.class, "priming.duration")).time()
+        def t = metrics.timer(MetricRegistry.name(CacheLoader.class, "secondary.duration")).time()
         GParsPool.withPool {
             GParsPool.executeAsyncAndWait(
                     { cache.updateDeployments(query.getDeployments()) },
