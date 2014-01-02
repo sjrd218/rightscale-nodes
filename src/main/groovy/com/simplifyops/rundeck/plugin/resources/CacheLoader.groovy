@@ -95,8 +95,8 @@ class CacheLoader_v1 extends CacheLoader {
         def operationalInstances = cache.getInstances().values().findAll {
             "operational".equalsIgnoreCase(it.attributes['state'])
         }
-        System.out.println("DEBUG: Total ${operationalInstances.size()} operational instances.")
-        logger.info("Total ${operationalInstances.size()} operational instances.")
+        System.out.println("DEBUG: Cache contains ${operationalInstances.size()} operational instances.")
+        logger.info("Cache contains ${operationalInstances.size()} operational instances.")
 
         /**
          * Post process the Instances to gather other linked resources. Only instances in the operational state are proessed..
@@ -118,8 +118,6 @@ class CacheLoader_v1 extends CacheLoader {
                             System.out.println("DEBUG: Query inputs, ${instance.links['inputs']} for instance: ${instance.links['self']}.")
                             if (!cache.hasResource('inputs', instance.links['inputs'])) {
                                 cache.updateInputs(query.getInputs(instance.links['inputs']))
-                            } else {
-                                System.out.println("DEBUG: Already cached inputs, ${instance.links['inputs']}.")
                             }
                         },
                         {
@@ -169,8 +167,8 @@ class CacheLoader_v1 extends CacheLoader {
          */
         def endtime = System.currentTimeMillis()
         def duration = (endtime - starttime)
-        System.out.println("DEBUG: loadCache() completed. (resources=${cache.size()}, duration=${duration})")
-        logger.info("loadCache() completed. (resources=${cache.size()}, duration=${duration})")
+        System.out.println("DEBUG: loadCache() completed. (resources=${cache.size()}, duration: ${duration})")
+        logger.info("loadCache() completed. (resources=${cache.size()}, duration: ${duration})")
         timer.stop()
         cacheRate.mark(cache.size())
     }
@@ -193,8 +191,8 @@ class CacheLoader_v2 extends CacheLoader {
         cacheRate.mark()
 
         def long starttime = System.currentTimeMillis()
-        logger.info("loadCache() started.")
-        System.out.println("DEBUG: loadCache() started.")
+        logger.info("Cache load started.")
+        System.out.println("DEBUG: Cache load started.")
 
 
         loadPrimary(cache, query)
@@ -207,8 +205,8 @@ class CacheLoader_v2 extends CacheLoader {
             try {
                 loadSecondary(cache, query)
             } catch (Exception e) {
-                logger.error("Caught an error loading secondary data.")
-                println("DEBUG: loadCache() caught an error loading secondary data.: ")
+                logger.error("Cache load caught an error loading secondary data.")
+                println("DEBUG: Cache load caught an error loading secondary data.: ")
                 e.printStackTrace()
                 metrics.counter(MetricRegistry.name(CacheLoader.class, "load.secondary.error")).inc();
 
@@ -220,8 +218,8 @@ class CacheLoader_v2 extends CacheLoader {
          */
         def endtime = System.currentTimeMillis()
         def duration = (endtime - starttime)
-        System.out.println("DEBUG: loadCache() completed. (resources=${cache.size()}, duration=${duration})")
-        logger.info("loadCache() completed. (resources=${cache.size()}, duration=${duration})")
+            System.out.println("DEBUG: Cache load completed. (resources=${cache.size()}, duration: ${duration})")
+        logger.info("Cache load completed. (resources=${cache.size()}, duration: ${duration})")
         timer.stop()
         cacheRate.mark(cache.size())
     }
@@ -252,8 +250,8 @@ class CacheLoader_v2 extends CacheLoader {
         def operationalInstances = cache.getInstances().values().findAll {
             "operational".equalsIgnoreCase(it.attributes['state'])
         }
-        System.out.println("DEBUG: Total ${operationalInstances.size()} operational instances.")
-        logger.info("Total ${operationalInstances.size()} operational instances.")
+        System.out.println("DEBUG: Cache contains ${operationalInstances.size()} operational instances.")
+        logger.info("Cache contains ${operationalInstances.size()} operational instances.")
 
         /**
          * Post process the Instances to gather their Tags and Inputs
@@ -269,17 +267,17 @@ class CacheLoader_v2 extends CacheLoader {
 
                         {
                             // Get the Inputs and update the cache with them.
-                            System.out.println("DEBUG: Query inputs for instance: ${instance.links['self']}.")
+                            System.out.println("DEBUG: Cache loader quering inputs for instance: ${instance.links['self']}.")
                             def inputs = query.getInputs(instance.links['inputs'])
                             cache.updateInputs(inputs)
-                            System.out.println("DEBUG: Found ${inputs.size()} inputs for instance: ${instance.links['self']}.")
+                            System.out.println("DEBUG: Cache contains ${inputs.size()} inputs for instance: ${instance.links['self']}.")
 
                         },
                         {
                             // Get the Tags.
-                            System.out.println("DEBUG: Query tags for instance: ${instance.links['self']}.")
+                            System.out.println("DEBUG: Cache load quering tags for instance: ${instance.links['self']}.")
                             def linkedTags = query.getTags(instance.links['self']).values()
-                            System.out.println("DEBUG: Query result found ${linkedTags.size()} tags for instance ${instance.links['self']}.")
+                            System.out.println("DEBUG: Cache contains ${linkedTags.size()} tags for instance ${instance.links['self']}.")
                             linkedTags.each { tag ->
                                 tags.put(instance.links['self'], tag)
                             }
@@ -301,14 +299,14 @@ class CacheLoader_v2 extends CacheLoader {
         cache.updateServerArrays(query.getServerArrays())
         def serverArrays = cache.getServerArrays().values()
 
-        System.out.println("DEBUG: Querying instances for ${serverArrays.size()} server arrays.")
-        logger.info("Querying instances for ${serverArrays.size()} server arrays.")
+        System.out.println("DEBUG: Cache loader querying instances for ${serverArrays.size()} server arrays.")
+        logger.info("Cache loader querying instances for ${serverArrays.size()} server arrays.")
         def severArrayTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'server_array.instances.duration'))
 
         GParsPool.withPool {
             serverArrays.eachParallel {
-                System.out.println("DEBUG: Querying instances for server array: ${it.attributes['name']}.")
-                logger.info("Querying instances for server array: ${it.attributes['name']}.")
+                System.out.println("DEBUG: Cache loader querying current_instances for server array: ${it.attributes['name']}.")
+                logger.info("Cache loader querying current_instances for server array: ${it.attributes['name']}.")
                 def t = severArrayTimer.time()
                 def server_array_id = it.getId()
                 cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
@@ -320,8 +318,8 @@ class CacheLoader_v2 extends CacheLoader {
     }
 
     private void loadSecondary(RightscaleCache cache, RightscaleAPI query) {
-        logger.info("loadCache() Loading secondary resources into cache")
-        System.out.println("DEBUG: loadCache() Loading secondary resources into cache")
+        logger.info("Cache loading secondary resources into cache")
+        System.out.println("DEBUG: Cache loading secondary resources into cache")
         def t = metrics.timer(MetricRegistry.name(CacheLoader.class, "secondary.duration")).time()
         GParsPool.withPool {
             GParsPool.executeAsyncAndWait(
@@ -333,8 +331,8 @@ class CacheLoader_v2 extends CacheLoader {
         GParsPool.withPool {
             clouds.eachParallel { cloud ->
                 def cloud_id = cloud.getId()
-                System.out.println("DEBUG: Loading cache with resources for cloud: ${cloud.attributes['name']}")
-                logger.info("Loading cache with resources for cloud: ${cloud.attributes['name']}")
+                System.out.println("DEBUG: Cache loading resources for cloud: ${cloud.attributes['name']}")
+                logger.info("Cache loading resources for cloud: ${cloud.attributes['name']}")
 
                 GParsPool.withPool {
                     GParsPool.executeAsyncAndWait(
@@ -349,8 +347,8 @@ class CacheLoader_v2 extends CacheLoader {
         }
 
         cachedSecondary = true;
-        logger.info("loadCache() Secondary resources cached")
-        System.out.println("DEBUG: loadCache() Secondary resources cached")
+        logger.info("Cache load secondary resources cached")
+        System.out.println("DEBUG: Cache load econdary resources cached")
         t.stop()
     }
 

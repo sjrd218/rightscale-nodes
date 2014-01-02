@@ -230,7 +230,6 @@ class RightscaleBasicCache implements RightscaleCache {
         def matched = getResources('server_array_instance').values().findAll {
             parent_href.equals(it.links['parent'])
         }
-        println("DEBUG: Found ${matched.size()} instances with server_array parent: ${parent_href}")
         matched.each {
             instances.put(it.links['self'], it)
         }

@@ -455,8 +455,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
             def endtime = System.currentTimeMillis()
             def duration = (endtime - starttime)
-            System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-            logger.info("Request succeeded: href ${href}. (duration=${duration})")
+            System.out.println("DEBUG: Request succeeded. href: ${href}. (duration: ${duration})")
+            logger.info("Request succeeded. href: ${href}. (duration: ${duration})")
 
             successCount.inc()
             return response
@@ -464,8 +464,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
         Node post(String href, Map params, Map data) {
             def long starttime = System.currentTimeMillis()
-            System.out.println("DEBUG: Requesting resource href: ${href}.")
-            logger.info("Requesting resource href: ${href}.")
+            System.out.println("DEBUG: Requesting resource. href: ${href}.")
+            logger.info("Requesting resource. href: ${href}.")
 
             def request = buildRest(href)
 
@@ -477,8 +477,8 @@ class RightscaleAPIRequest implements RightscaleAPI {
 
             def endtime = System.currentTimeMillis()
             def duration = (endtime - starttime)
-            System.out.println("DEBUG: Request succeeded: href ${href}. (duration=${duration})")
-            logger.info("Request succeeded: href ${href}. (duration=${duration})")
+            System.out.println("DEBUG: Request succeeded: href ${href}. (duration: ${duration})")
+            logger.info("Request succeeded: href ${href}. (duration: ${duration})")
             return response
         }
     }

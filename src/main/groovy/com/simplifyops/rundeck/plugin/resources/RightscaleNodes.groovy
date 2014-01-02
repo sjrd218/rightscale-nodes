@@ -140,8 +140,8 @@ public class RightscaleNodes implements ResourceModelSource {
                 });
             }
 
-            if (!metrics.getGauges().containsKey(MetricRegistry.name(RightscaleNodes.class, "since.lastUpdate"))) {
-                metrics.register(MetricRegistry.name(RightscaleNodes.class, "since.lastUpdate"), new Gauge<Integer>() {
+            if (!metrics.getGauges().containsKey(MetricRegistry.name(RightscaleNodes.class, "refresh.last.ago"))) {
+                metrics.register(MetricRegistry.name(RightscaleNodes.class, "refresh.last.ago"), new Gauge<Integer>() {
                     @Override
                     public Integer getValue() {
                         return (null == nodeset) ? 0 : sinceLastRefresh()
@@ -198,9 +198,9 @@ public class RightscaleNodes implements ResourceModelSource {
         } else {
 
             if (!needsRefresh()) {
-
-                System.println("DEBUG: Nodes don't need a refresh.")
-                logger.info("Nodes don't need a refresh.")
+                def ago = sinceLastRefresh()
+                System.println("DEBUG: Returning nodes from last refresh. (updated: ${ago} secs ago)")
+                logger.info("Returning nodes from last refresh. (updated: ${ago} secs ago)")
 
                 return nodeset;
             }
@@ -219,8 +219,8 @@ public class RightscaleNodes implements ResourceModelSource {
                 logger.info("Running refresh in background thread")
                 System.out.println("DEBUG: Running refresh in background thread")
             } else {
-                logger.info("Refresh thread already running. (thread id:" + refreshThread.id + ")")
-                System.out.println("DEBUG: Refresh thread already running. (thread id:" + refreshThread.id + ")")
+                logger.info("Refresh thread already running. (thread-id: " + refreshThread.id + ")")
+                System.out.println("DEBUG: Refresh thread already running. (thread-id: " + refreshThread.id + ")")
                 metrics.counter(MetricRegistry.name(RightscaleNodes.class, "refresh.request.skipped")).inc();
 
                 return nodeset
@@ -262,8 +262,8 @@ public class RightscaleNodes implements ResourceModelSource {
         def long starttime = System.currentTimeMillis()
         def refreshDuration = refreshDuration.time()
         refreshRate.mark()
-        System.out.println("DEBUG: refresh() started.")
-        logger.info("DEBUG: refresh() started.")
+        System.out.println("DEBUG: Refresh started.")
+        logger.info("Refresh started.")
 
         // load up the cache.
         loadCache()
@@ -278,8 +278,8 @@ public class RightscaleNodes implements ResourceModelSource {
         nodes.putNodes(populateServerArrayNodes(cache))
 
         lastRefreshDuration = (System.currentTimeMillis() - starttime)
-        System.println("DEBUG: refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${lastRefreshDuration})")
-        logger.info("refresh() ended. (nodes=${nodes.getNodes().size()}, duration=${lastRefreshDuration})")
+        System.println("DEBUG: Refresh ended. (nodes: ${nodes.getNodes().size()}, duration: ${lastRefreshDuration})")
+        logger.info("Refresh ended. (nodes: ${nodes.getNodes().size()}, duration: ${lastRefreshDuration})")
 
         refreshDuration.stop()
         refreshRate.mark(nodes.getNodes().size())
@@ -308,8 +308,8 @@ public class RightscaleNodes implements ResourceModelSource {
 
         // Only process operational servers with a current instance.
         def operationalServers = servers.findAll { "operational".equals(it.attributes['state']) && it.links.containsKey('current_instance') }
-        logger.info("Retrieved ${servers.size()} servers in operational state.")
-        System.out.println("DEBUG: Retrieved ${servers.size()} servers in operational state.")
+        logger.info("Populating nodes for servers. (count: ${servers.size()}")
+        System.out.println("DEBUG: Populating nodes for servers. (count: ${servers.size()}")
 
         operationalServers.each { server ->
             logger.info("Retreiving current_instance for server: ${server.attributes['name']}")
@@ -323,8 +323,6 @@ public class RightscaleNodes implements ResourceModelSource {
                 throw new ResourceModelSourceException("cloud link not found for server: " + server.attributes['name'])
             }
             def cloud_id = cloud_href.split("/").last()
-            logger.info("Retrieving current_instance: " + server.links['current_instance'])
-            System.out.println("DEBUG: Retrieving current_instance: " + server.links['current_instance'])
             def InstanceResource instance = api.getInstances(cloud_id).get(server.links['current_instance'])
             if (null == instance) {
                 logger.error("Failed getting instance for server: ${server.links['self']}. current_instance: "
@@ -335,8 +333,8 @@ public class RightscaleNodes implements ResourceModelSource {
             }
             // Extra precaution: only process instances that are also in state, operational.
             if ("operational".equalsIgnoreCase(instance.attributes['state'])) {
-                System.out.println("DEBUG: Creating node for server current_instance: ${instance.attributes['name']}")
-                logger.info("Creating node for server current_instance: ${instance.attributes['name']}")
+                System.out.println("DEBUG: Populating node for server current_instance: ${instance.attributes['name']}")
+                logger.info("Populating node for server current_instance: ${instance.attributes['name']}")
                 def NodeEntryImpl newNode = createNode(server.attributes['name'])
 
                 server.populate(newNode)
@@ -347,14 +345,14 @@ public class RightscaleNodes implements ResourceModelSource {
 
                 // Add the node to the result.
                 nodeset.putNode(newNode)
-                logger.info("Added node: " + newNode.getNodename() + " for server: ${server.links['self']}")
-                System.out.println("DEBUG: Added node: " + newNode.getNodename() + " for server: ${server.links['self']}")
+                logger.info("Populated node: " + newNode.getNodename() + " for server: ${server.links['self']}")
+                System.out.println("DEBUG: Populated node: " + newNode.getNodename() + " for server: ${server.links['self']}")
             }
 
         }
         def duration = (System.currentTimeMillis() - starttime)
-        System.println("DEBUG: populateServerNodes() ended. (nodes=${nodeset.getNodes().size()}, duration=${duration})")
-        logger.info("populateServerNodes() ended. (nodes=${nodeset.getNodes().size()}, duration=${duration})")
+        System.println("DEBUG: Populate server nodes ended. (nodes: ${nodeset.getNodes().size()}, duration: ${duration})")
+        logger.info("Populate server nodes ended. (nodes: ${nodeset.getNodes().size()}, duration: ${duration})")
         timer.stop()
 
         return nodeset
@@ -377,27 +375,27 @@ public class RightscaleNodes implements ResourceModelSource {
          * List the ServerArrays
          */
         def serverArrays = api.getServerArrays().values()
-        System.out.println("DEBUG: Iterating over ${serverArrays.size()} server arrays")
-        logger.info("Retrieved ${serverArrays.size()} server arrays")
+        System.out.println("DEBUG: Populating nodes for server arrays. (count: ${serverArrays.size()})")
+        logger.info("Populating nodes for server arrays. (count: ${serverArrays.size()})")
         serverArrays.each { serverArray ->
             def server_array_id = serverArray.getId()
-            logger.info("Retrieving instances for array: " + serverArray.attributes['name'])
-            println("DEBUG: Retrieving instances for array: " + serverArray.attributes['name'])
+            logger.info("Populating instances for server array: " + serverArray.attributes['name'])
+            println("DEBUG: Populating instances for server array: " + serverArray.attributes['name'])
             /**
              * Get the Instances for this array
              */
             def instances = api.getServerArrayInstances(server_array_id)
             // Only include instances that are operational.
             def operationalInstances = instances.values().findAll { "operational".equalsIgnoreCase(it.attributes['state']) }
-            logger.info("Retrieved ${operationalInstances.size()} operational instances.")
-            System.out.println("DEBUG: Retrieved ${operationalInstances.size()} operational instances.")
+            logger.info("Populating nodes for operational instances. (count: ${operationalInstances.size()})")
+            System.out.println("DEBUG: Populating nodes for operational instances. (count: ${operationalInstances.size()})")
 
             operationalInstances.each { instance ->
                 /**
                  * Populate the Node entry with the instance data.
                  */
-                System.out.println("DEBUG: Creating node for array, ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
-                logger.info("Creating node for array, ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
+                System.out.println("DEBUG: Populating node for instance: ${instance.attributes['name']}")
+                logger.info("Populating node for instance: ${instance.attributes['name']}")
 
                 def NodeEntryImpl newNode = createNode(instance.attributes['name'])
 
@@ -409,13 +407,13 @@ public class RightscaleNodes implements ResourceModelSource {
                 serverArray.populate(newNode)
 
                 nodeset.putNode(newNode)
-                System.out.println("DEBUG: Added ${serverArray.attributes['name']} server array instance: ${instance.attributes['name']}")
-                logger.info("Added ${serverArray.attributes['name']} server array instance: ${instance.attributes['name']}")
+                System.out.println("DEBUG: Populated node for server array: ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
+                logger.info("Populated node for server array ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
             }
         }
         def duration = (System.currentTimeMillis() - starttime)
-        System.println("DEBUG: populateServerArrayNodes() ended. (nodes=${nodeset.getNodes().size()}, duration=${duration})")
-        logger.info("populateServerArrayNodes() ended. (nodes=${nodeset.getNodes().size()}, duration=${duration})")
+        System.println("DEBUG: Populated nodes for ${serverArrays.size()} server arrays. (nodes: ${nodeset.getNodes().size()}, duration: ${duration})")
+        logger.info("Populated nodes for ${serverArrays.size()} server arrays. (nodes: ${nodeset.getNodes().size()}, duration: ${duration})")
         timer.stop()
 
         return nodeset;
@@ -443,7 +441,6 @@ public class RightscaleNodes implements ResourceModelSource {
      * @param newNode
      */
     void populateInstanceResources(RightscaleAPI api, InstanceResource instance, NodeEntryImpl newNode) {
-        System.out.println("DEBUG: Populating node for instance: ${instance.links['self']}.")
 
         def long starttime = System.currentTimeMillis()
         def timer = metrics.timer(MetricRegistry.name(RightscaleNodes, 'populateInstanceResources.duration')).time()
@@ -477,8 +474,8 @@ public class RightscaleNodes implements ResourceModelSource {
                     inputs.values().each { input ->
                         if (input.attributes['name'].matches(configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))) {
                             input.populate(newNode)
-                            logger.info("Setting node attribute for input: ${input.attributes['name']}")
-                            System.out.println("DEBUG: Setting node attribute for input: ${input.attributes['name']}")
+                            logger.info("Populated node attribute for input: ${input.attributes['name']}")
+                            System.out.println("DEBUG: Populated node attribute for input: ${input.attributes['name']}")
                         } else {
                             logger.info("Ignored input ${input.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
                             System.out.println("DEBUG: Ignored input ${input.attributes['name']}. Did not match: " + configuration.getProperty(RightscaleNodesFactory.INPUT_PATT))
@@ -505,8 +502,8 @@ public class RightscaleNodes implements ResourceModelSource {
                     break
             }
         }
-        System.out.println("DEBUG: Populating Tags for instance: " + instance.links['self'])
-        logger.info("retrieving tags for instance: " + instance.links['self'])
+        System.out.println("DEBUG: Populating node tags for instance: " + instance.attributes['name'])
+        logger.info("Populating node tags for instance: " + instance.attributes['name'])
         def tags = api.getTags(instance.links['self'])
         tags.values().each { TagsResource tag ->
             tag.attributes['tags'].split(",").each { name ->
@@ -517,13 +514,14 @@ public class RightscaleNodes implements ResourceModelSource {
                      * Generate an attribute if the tag contains an equal sign.
                      */
                     if (Boolean.parseBoolean(configuration.getProperty(RightscaleNodesFactory.TAG_ATTR)) && tag.hasAttributeForm(name)) {
-                        System.out.println("DEBUG: mapping tag to node attribute: ${name}.")
-                        logger.info("mapping tag to node attribute: ${name}.")
+
                         tag.setAttribute(name, newNode)
+                        System.out.println("DEBUG: Populated node attribute for tag: ${name}.")
+                        logger.info("Populated node attribute for tag: ${name}.")
                     } else {
                         RightscaleResource.setTag(name, newNode)
-                        logger.info("setting tag: ${name}")
-                        System.out.println("DEBUG: setting tag: ${name}")
+                        logger.info("Populated  node tag: ${name}")
+                        System.out.println("DEBUG: Populated node tag: ${name}")
                     }
 
                 } else {
@@ -533,8 +531,6 @@ public class RightscaleNodes implements ResourceModelSource {
             }
         }
         def duration = (System.currentTimeMillis() - starttime)
-        System.println("DEBUG: populateInstanceResources() ended. (duration=${duration})")
-        logger.info("populateInstanceResources() ended. (duration=${duration})")
         timer.stop()
     }
 }
