@@ -1,6 +1,7 @@
 package com.simplifyops.rundeck.plugin.resources
 
 import com.codahale.metrics.MetricRegistry
+import com.dtolabs.rundeck.core.resources.ResourceModelSourceException
 import groovyx.gpars.GParsPool
 import org.apache.log4j.Logger
 
@@ -204,12 +205,13 @@ class CacheLoader_v2 extends CacheLoader {
         } else {
             try {
                 loadSecondary(cache, query)
-            } catch (Exception e) {
-                logger.error("Cache load caught an error loading secondary data.")
-                println("DEBUG: Cache load caught an error loading secondary data.: ")
+            } catch (RightscaleAPIRequest.RequestException e) {
+                logger.error("Cache load caught API request error while loading secondary data. Continuing.")
+                println("DEBUG: Cache load caught API request error while loading secondary data. Continuing.")
                 e.printStackTrace()
                 metrics.counter(MetricRegistry.name(CacheLoader.class, "load.secondary.error")).inc();
-
+            } catch (Exception ex) {
+                throw new CacheLoadException(ex)
             }
         }
 
@@ -352,4 +354,25 @@ class CacheLoader_v2 extends CacheLoader {
         t.stop()
     }
 
+    class CacheLoadException extends ResourceModelSourceException {
+
+        public CacheLoadException() {
+            super();
+        }
+
+        public CacheLoadException(String msg) {
+            super(msg);
+        }
+
+        public CacheLoadException(Exception cause) {
+            super(cause);
+        }
+
+        public CacheLoadException(String msg, Exception cause) {
+            super(msg, cause);
+        }
+
+    }
+
 }
+

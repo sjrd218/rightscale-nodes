@@ -158,6 +158,15 @@ public class RightscaleNodes implements ResourceModelSource {
                 });
             }
 
+            if (!metrics.getGauges().containsKey(MetricRegistry.name(RightscaleNodes.class, "refresh.interval"))) {
+                metrics.register(MetricRegistry.name(RightscaleNodes.class, "refresh.interval"), new Gauge<Integer>() {
+                    @Override
+                    public Integer getValue() {
+                        return Integer.parseInt(configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL))
+                    }
+                });
+            }
+
             if (configuration.containsKey(RightscaleNodesFactory.METRICS_INTVERVAL)) {
                 final ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
                         .convertRatesTo(TimeUnit.SECONDS)
@@ -343,6 +352,12 @@ public class RightscaleNodes implements ResourceModelSource {
 
                 populateInstanceResources(api, instance, newNode)
 
+                // example url to gui: https://us-3.rightscale.com/acct/71655/servers/952109003
+                def String editUrl = configuration.getProperty(RightscaleNodesFactory.ENDPOINT) +
+                        "/acct/" + configuration.getProperty(RightscaleNodesFactory.ACCOUNT) +
+                        "/servers/" + server.getId()
+                newNode.setAttribute('editUrl', editUrl)
+
                 // Add the node to the result.
                 nodeset.putNode(newNode)
                 logger.info("Populated node: " + newNode.getNodename() + " for server: ${server.links['self']}")
@@ -405,6 +420,14 @@ public class RightscaleNodes implements ResourceModelSource {
                 populateInstanceResources(api, instance, newNode)
 
                 serverArray.populate(newNode)
+
+                // Edit URL is to the server array Instances tab.
+                // https://us-3.rightscale.com/acct/71655/server_arrays/226176003
+                def String editUrl = configuration.getProperty(RightscaleNodesFactory.ENDPOINT) +
+                        "/acct/" + configuration.getProperty(RightscaleNodesFactory.ACCOUNT) +
+                        "/server_arrays/" + server_array_id + "#instances"
+                newNode.setAttribute('editUrl', editUrl)
+
 
                 nodeset.putNode(newNode)
                 System.out.println("DEBUG: Populated node for server array: ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
@@ -530,6 +553,9 @@ public class RightscaleNodes implements ResourceModelSource {
                 }
             }
         }
+
+
+
         def duration = (System.currentTimeMillis() - starttime)
         timer.stop()
     }

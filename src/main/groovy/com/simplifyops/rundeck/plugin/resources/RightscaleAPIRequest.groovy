@@ -423,6 +423,7 @@ class RightscaleAPIRequest implements RightscaleAPI {
             request.addFilter(clientAuthFilter); // include cookie headers
             request
         }
+
         /**
          * Get the resource
          * @param href
@@ -435,14 +436,15 @@ class RightscaleAPIRequest implements RightscaleAPI {
                 href= href+'.xml'
             }
             def long starttime = System.currentTimeMillis()
-            System.out.println("DEBUG: Requesting resource href: ${href}.")
-            logger.info("Requesting resource href: ${href}.")
+            System.out.println("DEBUG: Requesting resource. href: ${href}.")
+            logger.info("Requesting resource. href: ${href}.")
 
             Rest request
             try {
                 request = buildRest(href)
             } catch (Throwable t) {
                 // TODO: Understand why this can be a Jersey SPI error. Thought it was caused by HTTP timeout.
+                t.printStackTrace()
                 System.out.println("DEBUG: Caught buildRest exception for href ${href}. Throwable type: "+t.getClass().getName())
                 errorCount.inc()
                 throw new RequestException("Error while building a client for href ${href}: " + t.message)
