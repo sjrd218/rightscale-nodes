@@ -37,8 +37,6 @@ class CacheLoader_v1 extends CacheLoader {
     @Override
     void load(RightscaleCache cache, RightscaleAPI query) {
         def timer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'load.duration')).time()
-        def cacheRate = metrics.meter(MetricRegistry.name(CacheLoader.class, "cache", "rate"))
-        cacheRate.mark()
 
         def long starttime = System.currentTimeMillis()
         logger.info("loadCache() started.")
@@ -171,7 +169,6 @@ class CacheLoader_v1 extends CacheLoader {
         System.out.println("DEBUG: loadCache() completed. (resources=${cache.size()}, duration: ${duration})")
         logger.info("loadCache() completed. (resources=${cache.size()}, duration: ${duration})")
         timer.stop()
-        cacheRate.mark(cache.size())
     }
 }
 
@@ -187,13 +184,10 @@ class CacheLoader_v2 extends CacheLoader {
     @Override
     void load(RightscaleCache cache, RightscaleAPI query) {
         def timer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'load.duration')).time()
-        def cacheRate = metrics.meter(MetricRegistry.name(CacheLoader.class, "cache", "rate"))
-
-        cacheRate.mark()
 
         def long starttime = System.currentTimeMillis()
-        logger.info("Cache load started.")
-        System.out.println("DEBUG: Cache load started.")
+        logger.info("Cache loader started.")
+        System.out.println("DEBUG: Cache loader started. (strategy: ${STRATEGY_V2})")
 
 
         loadPrimary(cache, query)
@@ -220,10 +214,9 @@ class CacheLoader_v2 extends CacheLoader {
          */
         def endtime = System.currentTimeMillis()
         def duration = (endtime - starttime)
-            System.out.println("DEBUG: Cache load completed. (resources=${cache.size()}, duration: ${duration})")
-        logger.info("Cache load completed. (resources=${cache.size()}, duration: ${duration})")
+        System.out.println("DEBUG: Cache loader completed. (resources=${cache.size()}, duration: ${duration}, strategy: ${STRATEGY_V2})")
+        logger.info("Cache loader completed. (resources=${cache.size()}, duration: ${duration}, strategy: ${STRATEGY_V2})")
         timer.stop()
-        cacheRate.mark(cache.size())
     }
     
     /**
@@ -235,12 +228,22 @@ class CacheLoader_v2 extends CacheLoader {
         def loadTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, "primary.duration")).time()
 
         /**
+         * Clear cache of the primary resources
+         */
+        cache.clearInstances()
+        cache.clearServers();
+        cache.clearServerArrays();
+        cache.clearServerArrayInstances()
+        cache.clearInputs()
+        cache.clearTags()
+
+        /**
          * Get the Clouds.
          */
         cache.updateClouds(query.getClouds())
 
         /**
-         * Get the Instances.
+         * Get the Instances in parallel.
          */
         def clouds = cache.getClouds().values()
         GParsPool.withPool {
@@ -258,12 +261,12 @@ class CacheLoader_v2 extends CacheLoader {
         /**
          * Post process the Instances to gather their Tags and Inputs
          */
-
         Map<String, RightscaleResource> tags = [:]
         def instanceTimer = metrics.timer(MetricRegistry.name(CacheLoader.class, 'instance.duration'))
 
         operationalInstances.each { instance ->
             def t = instanceTimer.time()
+
             GParsPool.withPool {
                 GParsPool.executeAsyncAndWait(
 
@@ -298,6 +301,7 @@ class CacheLoader_v2 extends CacheLoader {
         /**
          *  Get the ServerArrays
          */
+
         cache.updateServerArrays(query.getServerArrays())
         def serverArrays = cache.getServerArrays().values()
 
@@ -310,7 +314,7 @@ class CacheLoader_v2 extends CacheLoader {
                 System.out.println("DEBUG: Cache loader querying current_instances for server array: ${it.attributes['name']}.")
                 logger.info("Cache loader querying current_instances for server array: ${it.attributes['name']}.")
                 def t = severArrayTimer.time()
-                def server_array_id = it.getId()
+                def String server_array_id = it.getId()
                 cache.updateServerArrayInstances(query.getServerArrayInstances(server_array_id))
                 t.stop()
             }

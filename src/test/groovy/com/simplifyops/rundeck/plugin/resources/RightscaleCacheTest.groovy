@@ -131,8 +131,8 @@ public class RightscaleCacheTest {
         cache.updateInstanceTypes(
                 InstanceTypeResource.burst(new XmlParser().parseText(XmlData.INSTANCE_TYPES),
                         'instance_type', InstanceTypeResource.&create))
-        def resources = cache.getInstanceTypes()
-        Assert.assertEquals(2,resources.size())
+        Assert.assertEquals(1,cache.getInstanceTypes("926218062").size())
+        Assert.assertEquals(1,cache.getInstanceTypes("929741027").size())
     }
 
     @Test
@@ -181,8 +181,8 @@ public class RightscaleCacheTest {
         cache.updateSshKeys(
                 SshKeyResource.burst(new XmlParser().parseText(XmlData.SSH_KEYS),
                         'ssh_key', ServerResource.&create))
-        def resources = cache.getSshKeys()
-        Assert.assertEquals(2,resources.size())
+        Assert.assertEquals(1,cache.getSshKeys("926218062").size())
+        Assert.assertEquals(1,cache.getSshKeys("929741027").size())
     }
 
     @Test
@@ -206,6 +206,59 @@ public class RightscaleCacheTest {
                         'ssh_key', ServerResource.&create))
         Assert.assertTrue(cache.hasResource('ssh_key', "/api/clouds/926218062/ssh_keys/ABC3518369342DEF"))
     }
+
+    @Test
+    public void clearInstances() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateInstances(
+                InstanceResource.burst(new XmlParser().parseText(XmlData.INSTANCES),
+                        'instance', InstanceResource.&create))
+        Assert.assertEquals(2,cache.getInstances().size())
+
+        String cloud_id = "926218062"
+        cache.clearInstances(cloud_id)
+        Assert.assertEquals(1,cache.getInstances().size())
+
+        cache.clearInstances()
+        Assert.assertEquals(0,cache.getInstances().size())
+
+    }
+
+    @Test
+    public void clearServers() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateServers(
+                ServerResource.burst(new XmlParser().parseText(XmlData.SERVERS),
+                        'server', ServerResource.&create))
+        Assert.assertEquals(2,cache.getServers().size())
+        cache.clearServers()
+        Assert.assertEquals(0,cache.getServers().size())
+    }
+
+
+    @Test
+    public void clearServerArrays() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateServerArrays(
+                ServerArrayResource.burst(new XmlParser().parseText(XmlData.SERVER_ARRAYS),
+                        'server_array', ServerArrayResource.&create))
+        Assert.assertEquals(2,cache.getServerArrays().size())
+        cache.clearServerArrays()
+        Assert.assertEquals(0,cache.getServerArrays().size())
+    }
+
+    @Test
+    public void clearServerArrayInstances() {
+        def RightscaleBasicCache cache = new RightscaleBasicCache()
+        cache.updateServerArrayInstances(
+                InstanceResource.burst(new XmlParser().parseText(XmlData.SERVER_ARRAY_INSTANCES),
+                        'instance', InstanceResource.&create))
+        def server_array_id = "1"
+        Assert.assertEquals(1,cache.getServerArrayInstances(server_array_id).size())
+        cache.clearServerArrayInstances(server_array_id)
+        Assert.assertEquals(0,cache.getServerArrayInstances(server_array_id).size())
+    }
+
 
     @Test
     public void cachedResourceCollection() {
