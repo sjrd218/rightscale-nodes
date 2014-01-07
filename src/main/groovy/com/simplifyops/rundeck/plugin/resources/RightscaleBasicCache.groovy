@@ -119,7 +119,13 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     Map<String, RightscaleResource> getDatacenters(String cloud_id) {
-        return getResources('datacenter')
+        def resources = [:]
+        String cloud_href = "/api/clouds/"+cloud_id
+        getResources('datacenter').values().findAll {cloud_href.equals(it.links['cloud'])}.each {
+            resources.put(it.links['self'],it)
+        }
+
+        return resources
     }
 
     @Override
@@ -143,7 +149,13 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     Map<String, RightscaleResource> getImages(String cloud_id) {
-        return getResources('image')
+        def resources = [:]
+        String cloud_href = "/api/clouds/"+cloud_id
+        getResources('image').values().findAll {cloud_href.equals(it.links['cloud'])}.each {
+            resources.put(it.links['self'],it)
+        }
+
+        return resources
     }
 
     @Override
@@ -160,6 +172,10 @@ class RightscaleBasicCache implements RightscaleCache {
         storeResources('image', images)
     }
 
+    @Override
+    void clearInputs() {
+        resources['inputs'].clear()
+    }
 
     Map<String, RightscaleResource> getInputs() {
         return getResources('inputs')
@@ -189,9 +205,31 @@ class RightscaleBasicCache implements RightscaleCache {
     }
 
     @Override
-    Map<String, RightscaleResource> getInstances(String cloud_id) {
-        return getResources('instance')
+    void clearInstances() {
+        resources['instance'].clear()
     }
+
+
+    @Override
+    void clearInstances(String cloud_id) {
+        String cloud_href = "/api/clouds/"+cloud_id
+        def matches = getResources('instance').values().findAll {cloud_href.equals(it.links['cloud'])}
+        matches.each {
+            resources['instance'].remove(it.links['self'])
+        }
+    }
+
+    @Override
+    Map<String, RightscaleResource> getInstances(String cloud_id) {
+        def instances = [:]
+        String cloud_href = "/api/clouds/"+cloud_id
+        getResources('instance').values().findAll {cloud_href.equals(it.links['cloud'])}.each {
+            instances.put(it.links['self'],it)
+        }
+
+        return instances
+    }
+
 
     @Override
     Map<String, RightscaleResource> getInstances() {
@@ -205,12 +243,31 @@ class RightscaleBasicCache implements RightscaleCache {
 
     @Override
     Map<String, RightscaleResource> getInstanceTypes(String cloud_id) {
-        return getResources('instance_type')
+        def resources = [:]
+        String cloud_href = "/api/clouds/"+cloud_id
+        getResources('instance_type').values().findAll {cloud_href.equals(it.links['cloud'])}.each {
+            resources.put(it.links['self'],it)
+        }
+
+        return resources
     }
 
     @Override
     void updateInstanceTypes(Map<String, RightscaleResource> instanceTypes) {
         storeResources('instance_type', instanceTypes)
+    }
+
+    @Override
+    void clearServerArrayInstances() {
+        resources['server_array_instance'].clear()
+    }
+
+    @Override
+    void clearServerArrayInstances(String server_array_id) {
+        def instances = getServerArrayInstances(server_array_id).values()
+        instances.each {
+            resources['server_array_instance'].remove(it.links['self'])
+        }
     }
 
     @Override
@@ -221,6 +278,11 @@ class RightscaleBasicCache implements RightscaleCache {
     @Override
     void updateServerArrays(Map<String, RightscaleResource> serverArrays) {
         storeResources('server_array', serverArrays)
+    }
+
+    @Override
+    void clearServers() {
+        resources['server'].clear()
     }
 
     @Override
@@ -239,6 +301,11 @@ class RightscaleBasicCache implements RightscaleCache {
     @Override
     void updateServerArrayInstances(Map<String, RightscaleResource> instances) {
         storeResources('server_array_instance', instances)
+    }
+
+    @Override
+    void clearServerArrays() {
+        resources['server_array'].clear()
     }
 
     @Override
@@ -271,15 +338,24 @@ class RightscaleBasicCache implements RightscaleCache {
         storeResources('subnet', subnets)
     }
 
+
     @Override
     Map<String, RightscaleResource> getSshKeys(String cloud_id) {
-        return getResources('ssh_key')
+        def resources = [:]
+        String cloud_href = "/api/clouds/"+cloud_id
+        getResources('ssh_key').values().findAll {cloud_href.equals(it.links['cloud'])}.each {
+            resources.put(it.links['self'],it)
+        }
+
+        return resources
     }
 
     @Override
     void updateSshKeys(Map<String, RightscaleResource> ssh_keys) {
         storeResources('ssh_key', ssh_keys)
     }
+
+
 
     @Override
     Map<String, RightscaleResource> getTags(String href) {
@@ -298,6 +374,11 @@ class RightscaleBasicCache implements RightscaleCache {
     @Override
     void updateTags(Map<String, RightscaleResource> tags) {
         storeResources('tag', tags)
+    }
+
+    @Override
+    void clearTags() {
+        resources['tag'].clear()
     }
 
 
