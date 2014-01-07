@@ -258,8 +258,7 @@ public class RightscaleNodes implements ResourceModelSource {
         return TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastRefresh)
     }
 
-    private final def refreshCount = metrics.counter(MetricRegistry.name(RightscaleNodes.class, "refresh.request.count"));
-    private final Meter refreshRate = metrics.meter(MetricRegistry.name(RightscaleNodes.class, "refresh", "rate"))
+    private final def refreshCount = metrics.counter(MetricRegistry.name(RightscaleNodes.class, "refresh.request.total"));
     def refreshDuration = metrics.timer(MetricRegistry.name(RightscaleNodes.class, 'refresh.duration'))
 
     /**
@@ -270,7 +269,6 @@ public class RightscaleNodes implements ResourceModelSource {
     INodeSet refresh() {
         def long starttime = System.currentTimeMillis()
         def refreshDuration = refreshDuration.time()
-        refreshRate.mark()
         System.out.println("DEBUG: Refresh started.")
         logger.info("Refresh started.")
 
@@ -291,7 +289,6 @@ public class RightscaleNodes implements ResourceModelSource {
         logger.info("Refresh ended. (nodes: ${nodes.getNodes().size()}, duration: ${lastRefreshDuration})")
 
         refreshDuration.stop()
-        refreshRate.mark(nodes.getNodes().size())
         refreshCount.inc()
 
         return nodes;
