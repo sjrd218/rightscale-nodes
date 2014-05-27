@@ -436,12 +436,12 @@ class TagsResource extends RightscaleResource {
     }
 
     static boolean hasAttributeForm(String name) {
-        def m = name =~ /([^=]+)=([^=]+)/
+        def m = name =~ /([^=]+)=(.*)/
         return m.matches()
     }
 
      void setAttribute(String input, NodeEntryImpl node) {
-        def m = input =~ /([^=]+)=([^=]+)/
+        def m = input =~ /([^=]+)=(.*)/
         if (m.matches()) {
             def String name = m[0][1]
             def String value = m[0][2]
