@@ -1,0 +1,20 @@
+<joblist>
+  <job>
+    <loglevel>INFO</loglevel>
+    <sequence keepgoing='false' strategy='node-first'>
+      <command>
+        <exec>date</exec>
+      </command>
+    </sequence>
+    <description></description>
+    <name>ping</name>
+    <context>
+    </context>
+    <dispatch>
+      <threadcount>1</threadcount>
+      <keepgoing>false</keepgoing>
+      <excludePrecedence>true</excludePrecedence>
+      <rankOrder>ascending</rankOrder>
+    </dispatch>
+  </job>
+</joblist>

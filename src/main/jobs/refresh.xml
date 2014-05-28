@@ -1,0 +1,88 @@
+<joblist>
+  <job>
+    <schedule>
+      <time seconds='0' minute='0/5' hour='*' />
+      <weekday day='*' />
+      <month month='*' />
+      <year year='*' />
+    </schedule>
+    <loglevel>INFO</loglevel>
+    <sequence keepgoing='false' strategy='node-first'>
+      <command>
+        <errorhandler keepgoingOnSuccess='true'>
+          <jobref name='ping' nodeStep='false' />
+        </errorhandler>
+        <scriptargs>${option.cache_dir} ${option.projects_dir} ${job.project} ${option.force} ${option.max_lag}</scriptargs>
+        <script><![CDATA[#!/bin/bash
+
+set -eu; # fail fast.
+
+if (( $# != 5 )) 
+then
+    echo >&2 "Usage: cache_dir projects_dir project force tolerated_lag"
+    echo >&2 "Args were: $*"
+    exit 2
+fi
+CACHE_DIR=$(eval echo $1)    ; # eval'ing to expand $RDECK_BASE in case it's
+PROJECTS_DIR=$(eval echo $2) ; #+ used in the job options.
+PROJECT=$3
+FORCE=$4
+TOLERATED_LAG=$5
+
+# Set cache and config directories.
+CACHE=$CACHE_DIR/$PROJECT/2.rightscale-nodes.xml 
+CFG=$PROJECTS_DIR/$PROJECT/etc/project.properties
+
+# Get the plugin parameters controlling refresh.
+REFRESH_INTVERAL=$(awk -F = '/resources.source.2.config.refreshInterval/ {print $2}' $CFG)
+max_lag=$(( $REFRESH_INTVERAL + $TOLERATED_LAG ))
+# Read the cache data for the plugin-last refresh data.
+latest_refresh_d=$(xmlstarlet sel -t -m "//attribute[@name='plugin:last-refresh']" -v @value -n "$CACHE" | sort | tail -1)
+# Caclculate the lag from current time minus latest fresh time
+latest_refresh=$(gdate -d "$latest_refresh_d" +%s)
+current_time=$(gdate +%s)
+lag=$(( $current_time - $latest_refresh ))
+
+echo "
+* refresh interval: $REFRESH_INTVERAL secs
+* current lag: $lag secs
+* last refresh: $latest_refresh_d
+"
+
+if (( $lag > $max_lag ))
+then
+    echo >&2 "WARN: plugin polling is not keeping up. Maximum refresh lag exceeded."
+    if [[ ${FORCE} == "true"  ]]
+    then 
+    	touch $CFG
+    	echo >&2 "WARN: plugin kicked."
+	fi
+    
+    exit 5
+else
+    echo "Plugin is operating within tolerances."
+fi
+
+]]></script>
+      </command>
+    </sequence>
+    <description></description>
+    <name>refresh</name>
+    <context>
+      <options>
+        <option name='cache_dir' value='$RDECK_BASE/var/resourceModelSourceCache' required='true'>
+          <description>Rundeck directory containing cach data</description>
+        </option>
+        <option name='force' value='true' values='false,true' enforcedvalues='true' required='true'>
+          <description>Should force a syncrhonous refresh</description>
+        </option>
+        <option name='max_lag' value='60' required='true'>
+          <description>maximum tolerated seconds beyond refresh interval</description>
+        </option>
+        <option name='projects_dir' value='$RDECK_BASE/projects' required='true'>
+          <description>Rundeck directory containing projects data</description>
+        </option>
+      </options>
+    </context>
+  </job>
+</joblist>
