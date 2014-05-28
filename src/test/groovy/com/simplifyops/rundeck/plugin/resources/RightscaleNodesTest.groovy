@@ -84,6 +84,7 @@ public class RightscaleNodesTest {
         configuration.setProperty(RightscaleNodesFactory.METRICS_INTVERVAL, "1")
         configuration.setProperty(RightscaleNodesFactory.HTTP_TIMEOUT, "30000")
         configuration.setProperty(RightscaleNodesFactory.HTTP_LOG, "false")
+        configuration.setProperty(RightscaleNodesFactory.ALL_RESOURCES,"true")
         return configuration
     }
 

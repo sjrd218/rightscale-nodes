@@ -32,6 +32,7 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
     public static final String HTTP_TIMEOUT = "httpTimeout";
     public static final String HTTP_LOG = "httpLog";
     public static final String METRICS_INTVERVAL = "metricsInterval";
+    public static final String ALL_RESOURCES = "loadAllResources";
 
     /**
      * Default constructor.
@@ -68,6 +69,9 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             "Regular expression used to match resource tags (default: .*).", false, ".*"))
             .property(PropertyUtil.bool(TAG_ATTR, "Generate attributes from tags",
             "For tags that contain an equal sign (foo=bar), generate a like node attribute.",
+            false, "false"))
+            .property(PropertyUtil.bool(ALL_RESOURCES, "Load all resources for instances.",
+            "Includes loading resources for Datacenters, Deployments, Images, InstanceTypes, SshKeys, Subnets, ServerTemplates.",
             false, "false"))
             .property(PropertyUtil.integer(HTTP_TIMEOUT, "HTTP timeout",
             "Timeout for HTTP connection and read requests (time in milliseconds).",

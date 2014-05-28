@@ -2,7 +2,6 @@ package com.simplifyops.rundeck.plugin.resources
 
 import com.codahale.metrics.ConsoleReporter
 import com.codahale.metrics.Gauge
-import com.codahale.metrics.Meter
 import com.codahale.metrics.MetricRegistry
 import com.dtolabs.rundeck.core.common.INodeSet
 import com.dtolabs.rundeck.core.common.NodeEntryImpl
@@ -34,6 +33,8 @@ public class RightscaleNodes implements ResourceModelSource {
     private CacheLoader loader;
 
     private boolean initialized = false
+
+    private long lastRefresh = 0;
 
     private Thread refreshThread
 
@@ -68,8 +69,6 @@ public class RightscaleNodes implements ResourceModelSource {
         this.configuration = configuration
         this.query = api
         this.cache = cache
-
-        this.loader = CacheLoader.create(CacheLoader.STRATEGY_V2)
 
         logger.info("DEBUG: New RightscaleNodes object created.")
     }
@@ -122,6 +121,7 @@ public class RightscaleNodes implements ResourceModelSource {
      */
     void initialize() {
         if (!initialized) {
+
             // Cache
             int refreshSecs = Integer.parseInt(configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL));
             this.cache.setRefreshInterval(refreshSecs * 1000)
@@ -184,6 +184,15 @@ public class RightscaleNodes implements ResourceModelSource {
      * Populate the cache from query data.
      */
     void loadCache() {
+        // Create the configured kind of cache loading strategy.
+        if (null == loader) {
+            if (Boolean.parseBoolean(configuration.getProperty(RightscaleNodesFactory.ALL_RESOURCES))) {
+                loader = CacheLoader.create(CacheLoader.STRATEGY_FULL)
+            } else {
+                loader = CacheLoader.create(CacheLoader.STRATEGY_MINIMUM)
+            }
+        }
+
         loader.load(cache, query)
     }
 
@@ -200,14 +209,14 @@ public class RightscaleNodes implements ResourceModelSource {
          * Haven't got any nodes yet so get them synchronously.
          */
         if (null == nodeset) {
-            System.println("DEBUG: Empty nodeset. Refreshing nodes.")
-            logger.info("Empty nodeset. Refreshing nodes.")
+            System.println("DEBUG: Empty nodeset. Synchronously loading nodes.")
+            logger.info("Empty nodeset. Synchronously loading nodes.")
             nodeset = refresh()
 
         } else {
+            def ago = sinceLastRefresh()
 
             if (!needsRefresh()) {
-                def ago = sinceLastRefresh()
                 System.println("DEBUG: Returning nodes from last refresh. (updated: ${ago} secs ago)")
                 logger.info("Returning nodes from last refresh. (updated: ${ago} secs ago)")
 
@@ -215,18 +224,17 @@ public class RightscaleNodes implements ResourceModelSource {
             }
 
 
-            logger.info "Nodes need a refresh."
-            System.out.println("DEBUG: Nodes need a refresh.")
-            // Get a reading. how far behind our we on the refresh?
-            sinceLastRefresh()
+            logger.info "Nodes need a refresh. Last refresh ${ago} secs ago."
+            System.out.println("DEBUG: Nodes need a refresh. Last refresh ${ago} secs ago.")
+
             /**
              * Query asynchronously.
              */
 
             if (!asyncRefreshRunning()) {
                 refreshThread = Thread.start { nodeset = refresh() }
-                logger.info("Running refresh in background thread")
-                System.out.println("DEBUG: Running refresh in background thread")
+                logger.info("Running refresh in background thread: ${refreshThread.id}")
+                System.out.println("DEBUG: Running refresh in background thread: ${refreshThread.id}")
             } else {
                 logger.info("Refresh thread already running. (thread-id: " + refreshThread.id + ")")
                 System.out.println("DEBUG: Refresh thread already running. (thread-id: " + refreshThread.id + ")")
@@ -246,7 +254,12 @@ public class RightscaleNodes implements ResourceModelSource {
      * Returns true if the last refresh time was longer ago than the refresh interval.
      */
     boolean needsRefresh() {
-        return cache.needsRefresh()
+        def refreshInterval =  configuration.getProperty(RightscaleNodesFactory.REFRESH_INTERVAL).toInteger()
+        def now = System.currentTimeMillis()
+        def delta = ((now - lastRefresh)/1000)
+        def next = (refreshInterval - delta)
+        System.out.println("DEBUG: needsRefresh(): refresh interval: ${refreshInterval} secs, next refresh in ${next} secs")
+        return refreshInterval <= 0 || (delta > refreshInterval);
     }
 
     private boolean asyncRefreshRunning() {
@@ -254,7 +267,6 @@ public class RightscaleNodes implements ResourceModelSource {
     }
 
     private long sinceLastRefresh() {
-        def lastRefresh = cache.getLastRefresh()
         return TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastRefresh)
     }
 
@@ -284,7 +296,11 @@ public class RightscaleNodes implements ResourceModelSource {
         // Generate Nodes from Instances launched by ServerArrays.
         nodes.putNodes(populateServerArrayNodes(cache))
 
-        lastRefreshDuration = (System.currentTimeMillis() - starttime)
+        // update the refresh timestamp
+        lastRefresh = System.currentTimeMillis();
+        System.out.println("DEBUG: last-refresh: ${new Date(lastRefresh).toString()}")
+
+        lastRefreshDuration = (lastRefresh - starttime)
         System.println("DEBUG: Refresh ended. (nodes: ${nodes.getNodes().size()}, duration: ${lastRefreshDuration})")
         logger.info("Refresh ended. (nodes: ${nodes.getNodes().size()}, duration: ${lastRefreshDuration})")
 
@@ -354,6 +370,7 @@ public class RightscaleNodes implements ResourceModelSource {
                         "/acct/" + configuration.getProperty(RightscaleNodesFactory.ACCOUNT) +
                         "/servers/" + server.getId()
                 newNode.setAttribute('editUrl', editUrl)
+                newNode.setAttribute('plugin:last-refresh',new Date(System.currentTimeMillis()).toString())
 
                 // Add the node to the result.
                 nodeset.putNode(newNode)
@@ -424,7 +441,7 @@ public class RightscaleNodes implements ResourceModelSource {
                         "/acct/" + configuration.getProperty(RightscaleNodesFactory.ACCOUNT) +
                         "/server_arrays/" + server_array_id + "#instances"
                 newNode.setAttribute('editUrl', editUrl)
-
+                newNode.setAttribute('plugin:last-refresh',new Date(System.currentTimeMillis()).toString())
 
                 nodeset.putNode(newNode)
                 System.out.println("DEBUG: Populated node for server array: ${serverArray.attributes['name']}, instance: ${instance.attributes['name']}")
@@ -481,7 +498,7 @@ public class RightscaleNodes implements ResourceModelSource {
                     break
                 case "deployment":
                     def deployment = api.getDeployments().get(instance.links['deployment'])
-                    deployment.populate(newNode)
+                    if (null != deployment) deployment.populate(newNode)
                     break
                 case "image":
                     def image = api.getImages(cloud_id).get(instance.links['image'])
