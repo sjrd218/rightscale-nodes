@@ -9,8 +9,6 @@
     </sequence>
     <description></description>
     <name>trigger-refresh</name>
-    <context>
-    </context>
     <dispatch>
       <threadcount>1</threadcount>
       <keepgoing>false</keepgoing>
