@@ -1,0 +1,106 @@
+<joblist>
+  <job>
+    <id>fd771456-ea4e-4a68-b600-9a84381f81cb</id>
+    <schedule>
+      <time seconds='0' minute='0/5' hour='*' />
+      <weekday day='*' />
+      <month month='*' />
+      <year year='*' />
+    </schedule>
+    <loglevel>INFO</loglevel>
+    <sequence keepgoing='false' strategy='node-first'>
+      <command>
+        <errorhandler keepgoingOnSuccess='true'>
+          <jobref name='trigger-refresh' group='admin/plugins/rightscale-nodes' nodeStep='true' />
+        </errorhandler>
+        <description>Check last-refresh</description>
+        <scriptargs>${option.cache_dir} ${option.projects_dir} ${job.project} ${option.force} ${option.max_lag}</scriptargs>
+        <script><![CDATA[#!/bin/bash
+
+set -eu; # fail fast.
+
+if (( $# != 5 )) 
+then
+    echo >&2 "Usage: cache_dir projects_dir project force tolerated_lag"
+    echo >&2 "Args were: $*"
+    exit 2
+fi
+CACHE_DIR=$(eval echo $1)    ; # eval'ing to expand $RDECK_BASE in case it's
+PROJECTS_DIR=$(eval echo $2) ; #+ used in the job options.
+PROJECT=$3                   ; # Project name
+FORCE=$4                     ; # true|false 
+TOLERATED_LAG=$5             ; # seconds
+
+# Resolve config and cache file locations.
+CFG=$PROJECTS_DIR/$PROJECT/etc/project.properties
+[[ ! -f $CFG ]] && { echo >&2 "ERROR: Project configuration not found: $CFG" ; exit 2 ; }
+if ! entry=$(grep "resources.source.*.type=rightscale-nodes" $CFG)
+then echo >&2 "ERROR: rightscale-nodes plugin not found in configuration" ; exit 2 ;
+fi    
+[[ "$entry" =~ resources.source.([0-9]+).type=rightscale-nodes ]] && source_index=${BASH_REMATCH[1]}
+
+CACHE=$CACHE_DIR/$PROJECT/${source_index}.rightscale-nodes.xml 
+[[ ! -f $CACHE ]] && { echo >&2 "ERROR: Cache file not found $CACHE" ; exit 1 ; }
+
+
+# Lookup the plugin parameters controlling refresh.
+REFRESH_INTVERAL=$(awk -F = "/resources.source.${source_index}.config.refreshInterval/ {print \$2}" $CFG)
+max_lag=$(( $REFRESH_INTVERAL + $TOLERATED_LAG ))
+
+# List the values of the plugin:last-refresh attribute from the cache data and read the last one.
+latest_refresh_d=$(xmlstarlet sel -t -m "//attribute[@name='plugin:last-refresh']" -v @value -n "$CACHE" | sort | tail -1)
+# Convert the date/time string into unix epoch format.
+if ! which gdate >/dev/null 
+then DATE=date
+else DATE=gdate
+fi
+latest_refresh=$($DATE -d "$latest_refresh_d" +%s)
+# Caclculate the lag from the present time minus last-refresh time
+current_time=$($DATE +%s)
+lag=$(( $current_time - $latest_refresh ))
+
+echo "
+* refresh interval: $REFRESH_INTVERAL secs
+* current lag: $lag secs
+* last-refresh: $latest_refresh_d
+"
+
+if (( $lag > $max_lag ))
+then
+    echo >&2 "WARN: last-refresh has exceeded maximum tolerated lag by $(($lag - $max_lag)) secs."
+    if [[ ${FORCE} == "true"  ]]
+    then 
+        touch $CFG
+    	echo >&2 "WARN: plugin kicked."
+	fi
+    
+    exit 5
+else
+    echo "Refresh is operating within tolerances."
+fi
+
+]]></script>
+      </command>
+    </sequence>
+    <description>Checks if the rightscale-plugin is keeping up with its refresh interval.</description>
+    <name>check-refresh</name>
+    <context>
+      <options>
+        <option name='cache_dir' value='$RDECK_BASE/var/resourceModelSourceCache' values='$RDECK_BASE/var/resourceModelSourceCache,/var/lib/rundeck/var/resourceModelSourceCache' enforcedvalues='true' required='true'>
+          <description>Rundeck directory containing cach data</description>
+        </option>
+        <option name='force' value='true' values='false,true' enforcedvalues='true' required='true'>
+          <description>Should force a syncrhonous refresh</description>
+        </option>
+        <option name='max_lag' value='60' regex='[0-9]+' required='true'>
+          <description>maximum tolerated seconds beyond refresh interval</description>
+        </option>
+        <option name='projects_dir' value='$RDECK_BASE/projects' values='$RDECK_BASE/projects,/var/rundeck/projects' enforcedvalues='true' required='true'>
+          <description>Rundeck directory containing projects data</description>
+        </option>
+      </options>
+    </context>
+    <uuid>fd771456-ea4e-4a68-b600-9a84381f81cb</uuid>
+    <group>admin/plugins/rightscale-nodes</group>
+  </job>
+</joblist>

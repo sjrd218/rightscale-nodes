@@ -11,7 +11,7 @@ The plugin uses the Rightscale 1.5 API to retrieve the necessary resources to po
 To make the plugin more efficient and not place undue demands on the Rightscale API server,
 the plugin caches data and refreshes the data at a configured time interval.
 
-**Note**: Requires Rundeck 2.0
+**Note**: Requires Rundeck 2.0+
 
 ## Build
 
@@ -33,6 +33,8 @@ Connection
 * `Account`: String, The Rightscale Account number.
 * `Endpoint`: String, RightScale  API Endpoint URL. Must support API v1.5 (default is https://us-3.rightscale.com).
 * `Refresh Interval`: Integer, Minimum time in seconds between API requests to RightScale (default is 180).
+* `Load all resources` (default false): If checked true, all resource data is requested.
+Includes loading resources for Datacenters, Deployments, Images, InstanceTypes, SshKeys, Subnets, ServerTemplates.
 
 Mapping
 * `Default Node Username`: String, Default SSH username for remote execution.
@@ -157,7 +159,7 @@ Between refresh intervals, nodes from the last refresh are returned.
 Rightscale instances are linked to by a number of common resources.
 This basic data is used to prime the cache and load additional resources.
 
-### Primary resources
+### Minimal resources
 
 At every refresh, load the cache with
 * Clouds
@@ -170,7 +172,7 @@ At every refresh, load the cache with
 This data is considered more apt to change (new instances added, new tags defined)
 and is therefore requested at each refresh interval.
 
-### Secondary resources
+### Full load of resources
 
 Additional resources are retrieved if the Cloud supports them:
 
@@ -185,6 +187,23 @@ Additional resources are retrieved if the Cloud supports them:
 Because much of this data changes infrequently, it is only loaded once. Restart the plugin,
 or change its configuration to force a reload of the cache.
 
+## Jobs
+
+Two example jobs are included for checking the refresh cycle. These jobs are useful if
+you need the plugin to run at a regular interval, not just refreshing through normal use.
+This might be important if refreshes must be done at a predictable cycle.
+
+The job definitions can be found in src/main/jobs:
+
+* check-refresh: Runs every 5 minutes and checks the data in cache to determine the last refresh time.
+* trigger-refresh: Is invoked by check-refresh's error handler if the check fails and triggers a refresh.
+
+Customize these jobs to suit your environment or particular needs.
+
+Requirements: The check-refresh job depends on:
+
+* xmlstarlet to parse the xml cache file
+* gnu date to convert date/time format into unix epoch time in seconds
 
 ## Errors
 

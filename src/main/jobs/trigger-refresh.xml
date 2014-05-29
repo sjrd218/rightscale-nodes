@@ -1,5 +1,6 @@
 <joblist>
   <job>
+    <id>88cbd7ac-0ae3-45e0-ab0b-55574d1a12db</id>
     <loglevel>INFO</loglevel>
     <sequence keepgoing='false' strategy='node-first'>
       <command>
@@ -7,7 +8,7 @@
       </command>
     </sequence>
     <description></description>
-    <name>ping</name>
+    <name>trigger-refresh</name>
     <context>
     </context>
     <dispatch>
@@ -16,5 +17,7 @@
       <excludePrecedence>true</excludePrecedence>
       <rankOrder>ascending</rankOrder>
     </dispatch>
+    <uuid>88cbd7ac-0ae3-45e0-ab0b-55574d1a12db</uuid>
+    <group>admin/plugins/rightscale-nodes</group>
   </job>
 </joblist>
