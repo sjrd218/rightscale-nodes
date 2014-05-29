@@ -205,6 +205,13 @@ Requirements: The check-refresh job depends on:
 * xmlstarlet to parse the xml cache file
 * gnu date to convert date/time format into unix epoch time in seconds
 
+Caveats:
+
+The jobs rely on a couple of side effects which might not exist in future versions of rundeck.
+
+* The "kick" behavior depends on rundeck causing a full refresh from the plugin when the config file changes.
+* The log output from the trigger-refresh job ref call contains stdout that comes from server log.
+
 ## Errors
 
 See the service.log for any error messages produced by the plugin.

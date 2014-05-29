@@ -71,7 +71,8 @@ public class RightscaleNodesFactory implements ResourceModelSourceFactory, Descr
             "For tags that contain an equal sign (foo=bar), generate a like node attribute.",
             false, "false"))
             .property(PropertyUtil.bool(ALL_RESOURCES, "Load all resources for instances.",
-            "Includes loading resources for Datacenters, Deployments, Images, InstanceTypes, SshKeys, Subnets, ServerTemplates.",
+            "Includes loading resources for Datacenters, Deployments, Images, InstanceTypes, SshKeys, Subnets, ServerTemplates. " +
+                    "Note, the plugin will take significantly longer to load data.",
             false, "false"))
             .property(PropertyUtil.integer(HTTP_TIMEOUT, "HTTP timeout",
             "Timeout for HTTP connection and read requests (time in milliseconds).",
