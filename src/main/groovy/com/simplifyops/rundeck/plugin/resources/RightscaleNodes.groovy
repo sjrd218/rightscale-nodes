@@ -355,9 +355,12 @@ public class RightscaleNodes implements ResourceModelSource {
             }
             // Extra precaution: only process instances that are also in state, operational.
             if ("operational".equalsIgnoreCase(instance.attributes['state'])) {
+
                 System.out.println("DEBUG: Populating node for server current_instance: ${instance.attributes['name']}")
                 logger.info("Populating node for server current_instance: ${instance.attributes['name']}")
-                def NodeEntryImpl newNode = createNode(server.attributes['name'])
+
+                def nodename = instance.attributes['name'] + " " + instance.attributes['resource_uid']
+                def NodeEntryImpl newNode = createNode(nodename)
 
                 server.populate(newNode)
 
@@ -426,10 +429,11 @@ public class RightscaleNodes implements ResourceModelSource {
                 System.out.println("DEBUG: Populating node for instance: ${instance.attributes['name']}")
                 logger.info("Populating node for instance: ${instance.attributes['name']}")
 
-                def NodeEntryImpl newNode = createNode(instance.attributes['name'])
+                def nodename = instance.attributes['name'] + " " + instance.attributes['resource_uid']
+
+                def NodeEntryImpl newNode = createNode(nodename)
 
                 instance.populate(newNode)
-                newNode.setNodename(instance.attributes['name'])  // TODO: Convention agreement.
 
                 populateInstanceResources(api, instance, newNode)
 

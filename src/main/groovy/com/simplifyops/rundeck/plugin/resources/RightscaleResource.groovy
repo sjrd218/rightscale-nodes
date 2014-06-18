@@ -278,7 +278,7 @@ class ServerResource extends RightscaleResource {
     @Override
     void populate(NodeEntryImpl node) {
         super.populate(node)
-        node.setNodename(attributes['name'])
+        //node.setNodename(attributes['name'])
     }
 }
 

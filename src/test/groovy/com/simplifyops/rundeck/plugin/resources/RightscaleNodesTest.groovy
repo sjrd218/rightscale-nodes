@@ -117,8 +117,12 @@ public class RightscaleNodesTest {
 
         Assert.assertEquals(2, nodeSet.getNodes().size())
         def nodenames = nodeSet.getNodeNames()
-        Assert.assertTrue("name_2149427003 not found. nodes:" + nodenames, nodenames.contains("name_2149427003"))
-        Assert.assertTrue("name_3094109966 not found. nodes:" + nodenames, nodenames.contains("name_3094109966"))
+
+        def node1name = "name_1680878585 resource_3580826380"
+        def node2name = "name_642936808 resource_369673713"
+        Assert.assertTrue("\"${node1name}\" node not found. nodes:" + nodenames, nodenames.contains(node1name))
+        Assert.assertTrue("\"${node2name}\" node not found. nodes:" + nodenames, nodenames.contains(node2name))
+
         def INodeEntry node1 = nodeSet.getNodes().toArray()[0]
         def node1Attrs = node1.getAttributes()
         // server
