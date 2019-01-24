@@ -18,13 +18,6 @@ configurations{
 }
 repositories {
     mavenCentral()
-
-    add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
-        name = 'thirdparty'
-        addArtifactPattern "$projectDir/third-party/[module]-[revision]/[module]-[revision](-[classifier]).[ext]"
-        descriptor = 'optional'
-        checkmodified = true
-    }
 }
 dependencies {
     pluginLibs group: 'log4j', name: 'log4j', version: '1.2.17'
@@ -49,6 +42,14 @@ jar {
     //include contents of output dir
     from "$buildDir/output"
     manifest {
+        attributes 'Rundeck-Plugin-Name' : 'Rightscale Nodes'
+        attributes 'Rundeck-Plugin-Description': 'Generates Rundeck Nodes from the operational Instances associated with the Servers and ServerArrays in your RightScale account.'
+        attributes 'Rundeck-Plugin-Rundeck-Compatibility-Version': '2.x'
+        attributes 'Rundeck-Plugin-Tags': 'java,resource model'
+        attributes 'Rundeck-Plugin-License': 'Apache 2.0'
+        attributes 'Rundeck-Plugin-Source-Link': 'https://github.com/rundeck-plugins/rightscale-nodes'
+        attributes 'Rundeck-Plugin-Target-Host-Compatibility': 'all'
+        attributes 'Rundeck-Plugin-Author': 'Rundeck, Inc.'
         attributes 'Rundeck-Plugin-Version': rundeckPluginVersion, 'Rundeck-Plugin-Archive': 'true', 'Rundeck-Plugin-Libs-Load-First':'true'
         //create space-separated list of pluginLibs
         def libList = configurations.pluginLibs.collect{'lib/'+it.name}.join(' ')
